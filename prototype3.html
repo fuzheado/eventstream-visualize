@@ -175,7 +175,7 @@
         .treemap-inner {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            grid-template-rows: 1fr 1fr;
+            grid-template-rows: 60% 40%;
             gap: 2px;
             padding: 2px;
             flex: 1;
@@ -733,6 +733,8 @@ const decaySlider = document.getElementById('decay-slider');
 const decayValue = document.getElementById('decay-value');
 
 // ==================== MINI TREEMAP FOR DASHBOARD ====================
+const MINI_TOPIC_TO_CELL_ID = {};
+
 function initMiniTreemapUI() {
     Object.keys(TAXONOMY_TREE).forEach(cat => {
         const grid = document.getElementById(`mini-${cat}`);
@@ -751,7 +753,7 @@ function initMiniTreemapUI() {
             chip.id = `mini-cell-${topicId}`;
             chip.innerHTML = `<span class="topic-chip-name">${topicId.replace(/_/g, ' ')}</span>`;
             grid.appendChild(chip);
-            TOPIC_TO_CELL_ID[topicId] = chip.id;
+            MINI_TOPIC_TO_CELL_ID[topicId] = chip.id;
         });
     });
 }
@@ -914,8 +916,7 @@ function updateRateStats() {
 }
 
 // ==================== DOT VISUALIZATION ====================
-function addDot(cellId, category, confidence) {
-    const cell = document.getElementById(cellId);
+function addDotToCell(cell, category, confidence) {
     if (!cell) return;
 
     const dot = document.createElement('div');
@@ -934,6 +935,16 @@ function addDot(cellId, category, confidence) {
         dot.style.opacity = 0;
     }, Math.max(0, decayTime - 2000));
     setTimeout(() => dot.remove(), decayTime);
+}
+
+function addDot(cellId, category, confidence, topicId) {
+    const fullCell = document.getElementById(cellId);
+    addDotToCell(fullCell, category, confidence);
+    
+    if (topicId && MINI_TOPIC_TO_CELL_ID[topicId]) {
+        const miniCell = document.getElementById(MINI_TOPIC_TO_CELL_ID[topicId]);
+        addDotToCell(miniCell, category, confidence);
+    }
 }
 
 // ==================== LOG ====================
@@ -1412,7 +1423,7 @@ async function processEdit(change) {
                     }
                 }
 
-                addDot(mapped.cellId, mapped.category, t.score);
+                addDot(mapped.cellId, mapped.category, t.score, topicId);
             });
             
             addLogEntry(change, filtered);
