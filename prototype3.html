@@ -924,8 +924,16 @@ function addDotToCell(cell, category, confidence) {
     dot.style.backgroundColor = CATEGORY_COLORS[category] || '#888';
     dot.style.opacity = Math.max(0.3, confidence);
     dot.style.width = dot.style.height = (3 + confidence * 6) + 'px';
-    dot.style.left = (Math.random() * 80 + 10) + '%';
-    dot.style.top = (Math.random() * 40 + 50) + '%';
+    
+    const corners = [
+        { left: '5%', top: '5%' },
+        { left: '85%', top: '5%' },
+        { left: '5%', top: '75%' },
+        { left: '85%', top: '75%' }
+    ];
+    const pos = corners[Math.floor(Math.random() * corners.length)];
+    dot.style.left = pos.left;
+    dot.style.top = pos.top;
     
     cell.appendChild(dot);
     
