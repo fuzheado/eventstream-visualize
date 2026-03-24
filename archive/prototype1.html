@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WikiEditTracker - Wikipedia Topic Visualizer</title>
+    <style>
+        :root {
+            --culture: #e91e63;
+            --geography: #009688;
+            --history: #ff9800;
+            --stem: #2196f3;
+            --bg: #1a1a1a;
+            --card: #2d2d2d;
+            --text: #e0e0e0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Header & Stats */
+        header {
+            background: var(--card);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .app-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #fff;
+            letter-spacing: 1px;
+            border-right: 2px solid #444;
+            padding-right: 20px;
+        }
+
+        .stats-grid {
+            display: flex;
+            gap: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.4em;
+            font-weight: bold;
+            display: block;
+            color: #fff;
+        }
+
+        .stat-label {
+            font-size: 0.75em;
+            color: #aaa;
+            text-transform: uppercase;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: #3d3d3d;
+            padding: 8px 15px;
+            border-radius: 5px;
+        }
+
+        input[type="range"] {
+            width: 120px;
+        }
+
+        /* Visualization Area */
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            padding: 15px;
+            overflow: hidden;
+        }
+
+        .category-block {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            border-top: 4px solid #555;
+        }
+
+        .category-block.culture { border-color: var(--culture); }
+        .category-block.geography { border-color: var(--geography); }
+        .category-block.history { border-color: var(--history); }
+        .category-block.stem { border-color: var(--stem); }
+
+        .category-header {
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.05);
+            font-size: 0.9em;
+        }
+
+        .topic-grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 5px;
+            padding: 10px;
+            overflow-y: auto;
+        }
+
+        .topic-cell {
+            background: var(--card);
+            border-radius: 4px;
+            padding: 5px;
+            min-height: 50px;
+            position: relative;
+            font-size: 0.7em;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            border: 1px solid #444;
+            transition: transform 0.1s;
+        }
+
+        .topic-name {
+            color: #bbb;
+            margin-bottom: 5px;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* Dots */
+        .dot {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1;
+            pointer-events: none;
+            box-shadow: 0 0 8px rgba(255,255,255,0.5);
+            animation: appear 0.3s ease-out;
+        }
+
+        @keyframes appear {
+            from { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        .dot.fade-out {
+            opacity: 0;
+            transition: opacity 2s ease-out;
+        }
+
+        /* Log Area */
+        #log-container {
+            height: 200px;
+            background: #111;
+            border-top: 1px solid #444;
+            overflow-y: scroll;
+            font-size: 0.85em;
+        }
+
+        .log-entry {
+            padding: 5px 15px;
+            border-bottom: 1px solid #222;
+            display: grid;
+            grid-template-columns: 100px 1fr 200px 150px;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .log-time { color: #777; font-family: monospace; }
+        .log-title { font-weight: bold; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .log-user { color: #aaa; }
+        .log-topics { display: flex; gap: 5px; overflow: hidden; }
+        .topic-mini-tag {
+            background: #333;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            color: #ddd;
+        }
+
+        a { color: #4dabf7; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-left">
+        <div class="app-title">WikiEditTracker</div>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <span class="stat-value" id="stat-total">0</span>
+                <span class="stat-label">Total Events</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="stat-ns0">0</span>
+                <span class="stat-label">Article Edits</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="stat-api">0</span>
+                <span class="stat-label">API Calls</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="stat-cache">0%</span>
+                <span class="stat-label">Cache Hit %</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span class="stat-label">Min Confidence: <span id="confidence-value">0.15</span></span>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.05" value="0.15">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span class="stat-label">Decay (sec): <span id="decay-value">5</span></span>
+            <input type="range" id="decay-slider" min="1" max="20" step="1" value="5">
+        </div>
+        <button id="clear-btn" style="margin-left:10px; padding: 6px 15px; border-radius: 3px; border:none; background:#555; color:white; cursor:pointer; font-weight:bold;">Clear</button>
+    </div>
+</header>
+
+<main id="viz-container">
+    <div class="category-block culture">
+        <div class="category-header">CULTURE</div>
+        <div class="topic-grid" id="grid-Culture"></div>
+    </div>
+    <div class="category-block geography">
+        <div class="category-header">GEOGRAPHY</div>
+        <div class="topic-grid" id="grid-Geography"></div>
+    </div>
+    <div class="category-block history">
+        <div class="category-header">HISTORY & SOCIETY</div>
+        <div class="topic-grid" id="grid-History_and_Society"></div>
+    </div>
+    <div class="category-block stem">
+        <div class="category-header">STEM</div>
+        <div class="topic-grid" id="grid-STEM"></div>
+    </div>
+</main>
+
+<div id="log-container"></div>
+
+<script>
+    // Config
+    const EVENTSTREAM_URL = 'https://stream.wikimedia.org/v2/stream/recentchange';
+    const PROXY_URL = 'http://localhost:3001/predict';
+    
+    // Taxonomy setup (Mapping all known and implied topics)
+    const TAXONOMY = {
+        'Culture': ['Biography', 'Food_and_drink', 'Internet_culture', 'Language', 'Literature', 'Entertainment', 'Films', 'Music', 'Radio', 'Software', 'Television', 'Video_games', 'Visual_arts', 'Philosophy_and_religion', 'Sports', 'General'],
+        'Geography': ['Africa', 'Americas', 'Asia', 'Europe', 'Oceania', 'General'],
+        'History_and_Society': ['Business', 'Economics', 'Education', 'History', 'Military', 'Politics', 'Society', 'Transportation', 'General'],
+        'STEM': ['Biology', 'Chemistry', 'Computing', 'Earth_and_environment', 'Engineering', 'Mathematics', 'Medicine_&_Health', 'Physics', 'Space', 'Technology', 'General']
+    };
+
+    // Mapping helper
+    function mapTopicToCell(topicString) {
+        const parts = topicString.split('.');
+        const parent = parts[0];
+        let sub = parts[parts.length - 1].replace(/\*$/, '');
+        
+        // Specific mapping overrides to match our grid IDs
+        if (sub.includes('visual_arts')) sub = 'Visual_arts';
+        if (sub.includes('biography')) sub = 'Biography';
+        if (sub.includes('business')) sub = 'Business';
+        if (sub.includes('politics')) sub = 'Politics';
+        if (sub === 'STEM') sub = 'General';
+
+        const category = TAXONOMY[parent] ? parent : 'Unknown';
+        const topic = (TAXONOMY[parent] && TAXONOMY[parent].some(t => sub.includes(t))) 
+            ? TAXONOMY[parent].find(t => sub.includes(t)) 
+            : 'General';
+            
+        return { category, topic, full: topicString };
+    }
+
+    // State
+    let stats = { total: 0, ns0: 0, api: 0, hits: 0, misses: 0 };
+    const topicCache = new Map();
+    const CACHE_TTL = 300000; // 5 mins
+
+    // UI Elements
+    const logContainer = document.getElementById('log-container');
+    const confidenceSlider = document.getElementById('confidence-slider');
+    const confidenceValue = document.getElementById('confidence-value');
+    const decaySlider = document.getElementById('decay-slider');
+    const decayValue = document.getElementById('decay-value');
+    
+    // Initialize Grid
+    Object.keys(TAXONOMY).forEach(cat => {
+        const grid = document.getElementById(`grid-${cat}`);
+        TAXONOMY[cat].forEach(topic => {
+            const cell = document.createElement('div');
+            cell.className = 'topic-cell';
+            cell.id = `cell-${cat}-${topic}`;
+            cell.innerHTML = `<div class="topic-name">${topic.replace(/_/g, ' ')}</div>`;
+            grid.appendChild(cell);
+        });
+    });
+
+    function updateStats() {
+        document.getElementById('stat-total').textContent = stats.total;
+        document.getElementById('stat-ns0').textContent = stats.ns0;
+        document.getElementById('stat-api').textContent = stats.api;
+        const rate = stats.hits + stats.misses > 0 
+            ? Math.round((stats.hits / (stats.hits + stats.misses)) * 100) 
+            : 0;
+        document.getElementById('stat-cache').textContent = rate + '%';
+    }
+
+    function addDot(category, topic, confidence) {
+        const cell = document.getElementById(`cell-${category}-${topic}`);
+        if (!cell) return;
+
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        dot.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue(`--${category.toLowerCase().split('_')[0]}`).trim();
+        dot.style.opacity = Math.max(0.3, confidence);
+        dot.style.width = dot.style.height = (4 + confidence * 10) + 'px';
+        
+        // Random pos
+        dot.style.left = (Math.random() * 80 + 10) + '%';
+        dot.style.top = (Math.random() * 60 + 25) + '%';
+        
+        cell.appendChild(dot);
+        
+        const decayTime = parseInt(decaySlider.value) * 1000;
+        
+        // Use transition for fade
+        setTimeout(() => {
+            dot.style.transition = `opacity ${Math.min(2000, decayTime / 2)}ms ease-out`;
+            dot.style.opacity = 0;
+        }, Math.max(0, decayTime - 2000));
+        
+        setTimeout(() => dot.remove(), decayTime);
+    }
+
+    function addLogEntry(change, topics) {
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        
+        let timeStr = '???:??';
+        if (change.meta) {
+            if (change.meta.dt !== undefined) {
+                const dt = change.meta.dt;
+                if (typeof dt === 'number' && !isNaN(dt)) {
+                    timeStr = new Date(dt * 1000).toLocaleTimeString();
+                } else if (typeof dt === 'string') {
+                    const date = new Date(dt);
+                    if (!isNaN(date.getTime())) {
+                        timeStr = date.toLocaleTimeString();
+                    }
+                }
+            }
+            if (timeStr === '???:??' && change.meta.dt_utc !== undefined) {
+                const date = new Date(change.meta.dt_utc);
+                if (!isNaN(date.getTime())) {
+                    timeStr = date.toLocaleTimeString();
+                }
+            }
+        }
+
+        const topicTags = topics.slice(0, 2).map(t => 
+            `<span class="topic-mini-tag">${t.topic.split('.').pop().replace(/\*$/, '')} (${t.score.toFixed(2)})</span>`
+        ).join('');
+
+        entry.innerHTML = `
+            <div class="log-time">${timeStr}</div>
+            <div class="log-title"><a href="https://en.wikipedia.org/wiki/${encodeURIComponent(change.title)}" target="_blank">${change.title}</a></div>
+            <div class="log-user">by ${change.user}</div>
+            <div class="log-topics">${topicTags}</div>
+        `;
+
+        logContainer.insertBefore(entry, logContainer.firstChild);
+        if (logContainer.children.length > 50) logContainer.removeChild(logContainer.lastChild);
+    }
+
+    async function getTopics(title) {
+        const now = Date.now();
+        if (topicCache.has(title)) {
+            const cached = topicCache.get(title);
+            if (now - cached.ts < CACHE_TTL) {
+                stats.hits++;
+                return cached.data;
+            }
+        }
+        
+        stats.misses++;
+        stats.api++;
+        updateStats();
+
+        try {
+            const res = await fetch(PROXY_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ page_title: title, lang: 'en', threshold: 0.1 })
+            });
+            if (!res.ok) return [];
+            const data = await res.json();
+            const results = data.prediction?.results || data.results || [];
+            topicCache.set(title, { ts: now, data: results });
+            return results;
+        } catch (e) {
+            return [];
+        }
+    }
+
+    // Event Stream
+    const source = new EventSource(EVENTSTREAM_URL);
+    
+    source.onmessage = async (e) => {
+        const change = JSON.parse(e.data);
+        stats.total++;
+        
+        if (change.server_name === 'en.wikipedia.org' && change.namespace === 0 && !change.meta.domain?.includes('canary')) {
+            stats.ns0++;
+            updateStats();
+            
+            const topics = await getTopics(change.title);
+            const threshold = parseFloat(confidenceSlider.value);
+            const filtered = topics.filter(t => t.score >= threshold);
+            
+            if (filtered.length > 0) {
+                filtered.forEach(t => {
+                    const mapped = mapTopicToCell(t.topic);
+                    addDot(mapped.category, mapped.topic, t.score);
+                });
+                addLogEntry(change, filtered);
+            }
+        } else {
+            updateStats();
+        }
+    };
+
+    // Handlers
+    confidenceSlider.oninput = () => confidenceValue.textContent = confidenceSlider.value;
+    decaySlider.oninput = () => decayValue.textContent = decaySlider.value;
+    
+    document.getElementById('clear-btn').onclick = () => {
+        logContainer.innerHTML = '';
+        topicCache.clear();
+        stats = { total: 0, ns0: 0, api: 0, hits: 0, misses: 0 };
+        updateStats();
+    };
+
+</script>
+</body>
+</html>
