@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WikiEditTracker 2.0 - Multi-View Visualizer</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --culture: #e91e63;
+            --geography: #009688;
+            --history: #ff9800;
+            --stem: #2196f3;
+            --bg: #0d1117;
+            --card: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-dim: #8b949e;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .app-title {
+            font-size: 1.4em;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--culture), var(--stem));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stats-grid {
+            display: flex;
+            gap: 25px;
+        }
+
+        .stat-item { text-align: center; }
+        .stat-value { font-size: 1.3em; font-weight: 700; color: #fff; }
+        .stat-label { font-size: 0.7em; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+
+        .view-switcher {
+            display: flex;
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 4px;
+            gap: 4px;
+        }
+
+        .view-btn {
+            padding: 8px 16px;
+            border: none;
+            background: transparent;
+            color: var(--text-dim);
+            font-size: 0.85em;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .view-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+        .view-btn.active { background: var(--stem); color: #fff; }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .control-label {
+            font-size: 0.7em;
+            color: var(--text-dim);
+        }
+
+        input[type="range"] {
+            width: 100px;
+            height: 4px;
+            -webkit-appearance: none;
+            background: var(--border);
+            border-radius: 2px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--stem);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .view-container {
+            flex: 1;
+            display: none;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .view-container.active { display: flex; flex-direction: column; }
+
+        /* Treemap View */
+        #view-treemap {
+            display: grid;
+            grid-template-columns: 1.6fr 1.6fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 3px;
+            padding: 3px;
+            background: #000;
+        }
+
+        #view-treemap.active { display: grid; }
+
+        .category-block {
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .category-block.culture { grid-row: 1/3; grid-column: 1; border-top: 3px solid var(--culture); }
+        .category-block.geography { grid-row: 1/3; grid-column: 2; border-top: 3px solid var(--geography); }
+        .category-block.history { grid-row: 1; grid-column: 3; border-top: 3px solid var(--history); }
+        .category-block.stem { grid-row: 2; grid-column: 3; border-top: 3px solid var(--stem); }
+
+        .category-header {
+            padding: 6px;
+            text-align: center;
+            font-weight: 900;
+            background: #111;
+            font-size: 0.75em;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+
+        .topic-grid {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            padding: 0;
+            gap: 2px;
+            overflow: hidden;
+        }
+
+        .topic-group {
+            background: #0a0a0a;
+            flex: 1 1 auto;
+            min-width: 120px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #1a1a1a;
+        }
+
+        .topic-group[data-group="Media"],
+        .topic-group[data-group="Africa"],
+        .topic-group[data-group="Asia"],
+        .topic-group[data-group="STEM_Group"],
+        .topic-group[data-group="Misc_Culture"],
+        .topic-group[data-group="Europe"] {
+            flex: 2 1 240px;
+        }
+
+        .group-header {
+            font-size: 0.6em;
+            font-weight: 800;
+            color: var(--text-dim);
+            padding: 3px 6px;
+            text-transform: uppercase;
+            background: #0f0f0f;
+        }
+
+        .group-subs {
+            display: flex;
+            flex-wrap: wrap;
+            flex: 1;
+            gap: 1px;
+        }
+
+        .topic-cell {
+            background: #141414;
+            flex: 1 1 60px;
+            min-height: 28px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            border: 1px solid #1a1a1a;
+            transition: background 0.2s;
+        }
+
+        .topic-cell:hover { background: #1f1f1f; }
+        .topic-cell.is-generic { background: #0e0e0e; }
+
+        .topic-name {
+            color: var(--text-dim);
+            font-size: 0.6em;
+            padding: 2px 4px;
+            pointer-events: none;
+            text-transform: capitalize;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .dot {
+            position: absolute;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 5;
+            pointer-events: none;
+            animation: pulse 0.3s ease-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
+        }
+
+        /* Sunburst View */
+        #view-sunburst {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg);
+        }
+
+        #sunburst-svg {
+            width: 100%;
+            height: 100%;
+            max-width: 650px;
+            max-height: 650px;
+        }
+
+        /* Stream Graph View */
+        #view-streamgraph {
+            flex: 1;
+            padding: 20px;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+        }
+
+        #streamgraph-svg {
+            flex: 1;
+            min-height: 200px;
+            height: 300px;
+            width: 100%;
+            background: var(--card);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .stream-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            padding: 15px;
+            justify-content: center;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75em;
+            color: var(--text-dim);
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        /* Sparklines View */
+        #view-sparklines {
+            flex: 1;
+            padding: 15px;
+            background: var(--bg);
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            align-content: start;
+        }
+
+        .sparkline-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .sparkline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .sparkline-title {
+            font-size: 0.75em;
+            font-weight: 600;
+            color: var(--text);
+            text-transform: capitalize;
+        }
+
+        .sparkline-value {
+            font-size: 0.9em;
+            font-weight: 700;
+            color: var(--stem);
+        }
+
+        .sparkline-canvas {
+            width: 100%;
+            height: 40px;
+            display: block;
+        }
+
+        /* Log Area */
+        #log-container {
+            height: 100px;
+            background: var(--card);
+            border-top: 1px solid var(--border);
+            overflow-y: auto;
+            font-size: 0.8em;
+            flex-shrink: 0;
+        }
+
+        .log-entry {
+            padding: 4px 15px;
+            border-bottom: 1px solid var(--border);
+            display: grid;
+            grid-template-columns: 80px 1.5fr 3fr;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .log-time { color: var(--text-dim); font-family: monospace; font-size: 0.85em; }
+        .log-title { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .log-user { color: var(--text-dim); font-size: 0.8em; }
+        .log-topics { display: flex; gap: 8px; overflow: hidden; }
+
+        .log-topic-badge {
+            background: rgba(33, 150, 243, 0.2);
+            color: var(--stem);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7em;
+        }
+
+        a { color: var(--stem); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+        .time-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            justify-content: center;
+        }
+
+        .time-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-dim);
+            font-size: 0.75em;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .time-btn:hover { border-color: var(--stem); color: var(--text); }
+        .time-btn.active { background: var(--stem); border-color: var(--stem); color: #fff; }
+
+        .view-info {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.75em;
+            color: var(--text-dim);
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-left">
+        <div class="app-title">WikiEditTracker 2.0</div>
+        <div class="stats-grid">
+            <div class="stat-item"><span class="stat-value" id="stat-total">0</span><span class="stat-label">Events</span></div>
+            <div class="stat-item"><span class="stat-value" id="stat-ns0">0</span><span class="stat-label">Articles</span></div>
+            <div class="stat-item"><span class="stat-value" id="stat-api">0</span><span class="stat-label">API</span></div>
+            <div class="stat-item"><span class="stat-value" id="stat-rate">0</span><span class="stat-label">/min</span></div>
+            <div class="stat-item"><span class="stat-value" id="stat-cache">--</span><span class="stat-label">Cache%</span></div>
+        </div>
+    </div>
+
+    <div class="view-switcher">
+        <button class="view-btn active" data-view="treemap">Treemap</button>
+        <button class="view-btn" data-view="sunburst">Sunburst</button>
+        <button class="view-btn" data-view="streamgraph">Stream Graph</button>
+        <button class="view-btn" data-view="sparklines">Sparklines</button>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <span class="control-label">Confidence: <span id="confidence-value">0.15</span></span>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.05" value="0.15">
+        </div>
+        <div class="control-group">
+            <span class="control-label">Decay: <span id="decay-value">5</span>s</span>
+            <input type="range" id="decay-slider" min="1" max="20" step="1" value="5">
+        </div>
+    </div>
+</header>
+
+<main>
+    <div id="view-treemap" class="view-container active">
+        <div class="category-block culture">
+            <div class="category-header">CULTURE</div>
+            <div class="topic-grid" id="grid-Culture"></div>
+        </div>
+        <div class="category-block geography">
+            <div class="category-header">GEOGRAPHY</div>
+            <div class="topic-grid" id="grid-Geography"></div>
+        </div>
+        <div class="category-block history">
+            <div class="category-header">HISTORY & SOCIETY</div>
+            <div class="topic-grid" id="grid-History_and_Society"></div>
+        </div>
+        <div class="category-block stem">
+            <div class="category-header">STEM</div>
+            <div class="topic-grid" id="grid-STEM"></div>
+        </div>
+    </div>
+
+    <div id="view-sunburst" class="view-container">
+        <svg id="sunburst-svg"></svg>
+        <div class="view-info">Hover to inspect | Updates in real-time</div>
+    </div>
+
+    <div id="view-streamgraph" class="view-container">
+        <div class="time-selector">
+            <button class="time-btn active" data-minutes="5">5 min</button>
+            <button class="time-btn" data-minutes="15">15 min</button>
+            <button class="time-btn" data-minutes="30">30 min</button>
+            <button class="time-btn" data-minutes="60">60 min</button>
+        </div>
+        <svg id="streamgraph-svg"></svg>
+        <div class="stream-legend" id="stream-legend"></div>
+    </div>
+
+    <div id="view-sparklines" class="view-container">
+        <div class="view-info">Sparklines show edit rate over last minute | Updates every 2s</div>
+    </div>
+</main>
+
+<div id="log-container"></div>
+
+<script>
+const EVENTSTREAM_URL = 'https://stream.wikimedia.org/v2/stream/recentchange';
+const PROXY_URL = 'http://localhost:3001/predict';
+const CACHE_TTL = 300000;
+const MAX_PROCESSED_IDS = 1000;
+
+const CATEGORY_COLORS = {
+    'Culture': '#e91e63',
+    'Geography': '#009688',
+    'History_and_Society': '#ff9800',
+    'STEM': '#2196f3'
+};
+
+const TAXONOMY_TREE = {
+    'Culture': [
+        { id: 'Biography', name: 'Biography', subs: ['Women'] },
+        { id: 'Media', name: 'Media', subs: ['Books', 'Entertainment', 'Films', 'Music', 'Radio', 'Software', 'Television', 'Video_games'] },
+        { id: 'Visual_arts', name: 'Visual Arts', subs: ['Architecture', 'Comics_and_Anime', 'Fashion'] },
+        { id: 'Misc_Culture', name: 'Culture (Other)', subs: ['Food_and_drink', 'Internet_culture', 'Linguistics', 'Literature', 'Performing_arts', 'Philosophy_and_religion', 'Sports'] }
+    ],
+    'Geography': [
+        { id: 'Africa', name: 'Africa', subs: ['Central_Africa', 'Eastern_Africa', 'Northern_Africa', 'Southern_Africa', 'Western_Africa'] },
+        { id: 'Americas', name: 'Americas', subs: ['Central_America', 'North_America', 'South_America'] },
+        { id: 'Asia', name: 'Asia', subs: ['Central_Asia', 'East_Asia', 'North_Asia', 'South_Asia', 'Southeast_Asia', 'West_Asia'] },
+        { id: 'Europe', name: 'Europe', subs: ['Eastern_Europe', 'Northern_Europe', 'Southern_Europe', 'Western_Europe'] },
+        { id: 'Other_Regions', name: 'Other', subs: ['Oceania', 'Geographical'] }
+    ],
+    'History_and_Society': [
+        { id: 'Society_Group', name: 'History & Society', subs: ['Business_and_economics', 'Education', 'History', 'Military_and_warfare', 'Politics_and_government', 'Society', 'Transportation'] }
+    ],
+    'STEM': [
+        { id: 'STEM_Group', name: 'STEM', subs: ['Biology', 'Chemistry', 'Computing', 'Earth_and_environment', 'Engineering', 'Libraries_&_Information', 'Mathematics', 'Medicine_&_Health', 'Physics', 'Space', 'Technology'] }
+    ]
+};
+
+let stats = { total: 0, ns0: 0, api: 0, hits: 0, misses: 0 };
+const topicCache = new Map();
+const processedIds = new Set();
+let topicCounts = {};
+let editHistory = [];
+const MAX_HISTORY = 2000;
+let currentView = 'treemap';
+let streamGraphMinutes = 5;
+let sparklineData = {};
+
+const logContainer = document.getElementById('log-container');
+const confidenceSlider = document.getElementById('confidence-slider');
+const confidenceValue = document.getElementById('confidence-value');
+const decaySlider = document.getElementById('decay-slider');
+const decayValue = document.getElementById('decay-value');
+const TOPIC_TO_CELL_ID = {};
+
+function initTreemapUI() {
+    Object.keys(TAXONOMY_TREE).forEach(cat => {
+        const grid = document.getElementById(`grid-${cat}`);
+        TAXONOMY_TREE[cat].forEach(group => {
+            const groupEl = document.createElement('div');
+            groupEl.className = 'topic-group';
+            groupEl.setAttribute('data-group', group.id);
+            groupEl.innerHTML = `<div class="group-header"><span>${group.name}</span></div><div class="group-subs" id="subs-${group.id}"></div>`;
+            grid.appendChild(groupEl);
+            
+            const subsContainer = groupEl.querySelector(`#subs-${group.id}`);
+            
+            if (group.id !== 'Americas') {
+                const genericCell = document.createElement('div');
+                genericCell.className = 'topic-cell is-generic';
+                genericCell.id = `cell-${cat}-${group.id}-generic`;
+                genericCell.innerHTML = `<div class="topic-name">(General)</div>`;
+                subsContainer.appendChild(genericCell);
+                TOPIC_TO_CELL_ID[group.id] = genericCell.id;
+            }
+
+            group.subs.forEach(sub => {
+                const cell = document.createElement('div');
+                cell.className = 'topic-cell';
+                cell.id = `cell-${cat}-${sub}`;
+                cell.innerHTML = `<div class="topic-name">${sub.replace(/_/g, ' ')}</div>`;
+                subsContainer.appendChild(cell);
+                TOPIC_TO_CELL_ID[sub] = cell.id;
+            });
+        });
+    });
+}
+
+function initSparklinesUI() {
+    const container = document.getElementById('view-sparklines');
+    const infoDiv = container.querySelector('.view-info');
+    container.innerHTML = '';
+    if (infoDiv) container.appendChild(infoDiv);
+    
+    const allTopics = [];
+    Object.keys(TAXONOMY_TREE).forEach(cat => {
+        TAXONOMY_TREE[cat].forEach(group => {
+            allTopics.push({ id: group.id, name: group.name, cat });
+            group.subs.forEach(sub => {
+                allTopics.push({ id: sub, name: sub.replace(/_/g, ' '), cat });
+            });
+        });
+    });
+
+    allTopics.forEach(topic => {
+        const card = document.createElement('div');
+        card.className = 'sparkline-card';
+        card.id = `sparkline-${topic.id}`;
+        card.innerHTML = `
+            <div class="sparkline-header">
+                <span class="sparkline-title">${topic.name}</span>
+                <span class="sparkline-value" id="sparkval-${topic.id}">0</span>
+            </div>
+            <canvas class="sparkline-canvas" id="sparkcanvas-${topic.id}" width="126" height="40"></canvas>
+        `;
+        container.appendChild(card);
+        sparklineData[topic.id] = new Array(30).fill(0);
+    });
+}
+
+function mapTopicToCell(topicString) {
+    const parts = topicString.split('.').map(p => p.replace(/\*$/, ''));
+    const cat = parts[0];
+    
+    for (let i = parts.length - 1; i >= 1; i--) {
+        const part = parts[i];
+        const cleanPart = part === 'STEM' ? 'STEM_Group' : part;
+        if (TOPIC_TO_CELL_ID[cleanPart]) {
+            return { cellId: TOPIC_TO_CELL_ID[cleanPart], category: cat, subTopic: cleanPart };
+        }
+    }
+    
+    const fallback = cat === 'Culture' ? 'Misc_Culture' : 
+                     cat === 'Geography' ? 'Other_Regions' :
+                     cat === 'STEM' ? 'STEM_Group' : 'Society_Group';
+    return { cellId: TOPIC_TO_CELL_ID[fallback], category: cat, subTopic: fallback };
+}
+
+function getTopicId(topicString) {
+    const parts = topicString.split('.').map(p => p.replace(/\*$/, ''));
+    const cat = parts[0];
+    
+    for (let i = parts.length - 1; i >= 1; i--) {
+        const part = parts[i];
+        const cleanPart = part === 'STEM' ? 'STEM_Group' : part;
+        if (TOPIC_TO_CELL_ID[cleanPart]) return cleanPart;
+    }
+    
+    return cat === 'Culture' ? 'Misc_Culture' : 
+           cat === 'Geography' ? 'Other_Regions' :
+           cat === 'STEM' ? 'STEM_Group' : 'Society_Group';
+}
+
+async function getTopics(title) {
+    const now = Date.now();
+    if (topicCache.has(title)) {
+        const cached = topicCache.get(title);
+        if (now - cached.ts < CACHE_TTL) {
+            stats.hits++;
+            return cached.data;
+        }
+    }
+    
+    stats.misses++;
+    stats.api++;
+    updateStats();
+
+    try {
+        const res = await fetch(PROXY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ page_title: title, lang: 'en', threshold: 0.1 })
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        const results = data.prediction?.results || data.results || [];
+        topicCache.set(title, { ts: now, data: results });
+        return results;
+    } catch (e) {
+        return [];
+    }
+}
+
+function updateStats() {
+    document.getElementById('stat-total').textContent = stats.total;
+    document.getElementById('stat-ns0').textContent = stats.ns0;
+    document.getElementById('stat-api').textContent = stats.api;
+    const rate = stats.hits + stats.misses > 0 
+        ? Math.round((stats.hits / (stats.hits + stats.misses)) * 100) 
+        : 0;
+    document.getElementById('stat-cache').textContent = rate + '%';
+}
+
+function updateRateStats() {
+    const now = Date.now();
+    const oneMinuteAgo = now - 60000;
+    const recent = editHistory.filter(e => e.time > oneMinuteAgo).length;
+    document.getElementById('stat-rate').textContent = recent;
+}
+
+function addDot(cellId, category, confidence) {
+    const cell = document.getElementById(cellId);
+    if (!cell) return;
+
+    const dot = document.createElement('div');
+    dot.className = 'dot';
+    dot.style.backgroundColor = CATEGORY_COLORS[category] || '#888';
+    dot.style.opacity = Math.max(0.3, confidence);
+    dot.style.width = dot.style.height = (4 + confidence * 8) + 'px';
+    dot.style.left = (Math.random() * 80 + 10) + '%';
+    dot.style.top = (Math.random() * 60 + 25) + '%';
+    
+    cell.appendChild(dot);
+    
+    const decayTime = parseInt(decaySlider.value) * 1000;
+    setTimeout(() => {
+        dot.style.transition = `opacity ${Math.min(2000, decayTime / 2)}ms ease-out`;
+        dot.style.opacity = 0;
+    }, Math.max(0, decayTime - 2000));
+    setTimeout(() => dot.remove(), decayTime);
+}
+
+function addLogEntry(change, topics) {
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    
+    let timeStr = '--:--:--';
+    if (change.meta?.dt) {
+        const dt = change.meta.dt;
+        const date = typeof dt === 'number' ? new Date(dt * 1000) : new Date(dt);
+        if (!isNaN(date.getTime())) {
+            timeStr = date.toLocaleTimeString();
+        }
+    }
+
+    const topicBadges = topics.slice(0, 2).map(t => {
+        const name = t.topic.split('.').pop().replace(/\*$/, '').replace(/_/g, ' ');
+        return `<span class="log-topic-badge">${name}</span>`;
+    }).join('');
+
+    entry.innerHTML = `
+        <div class="log-time">${timeStr}</div>
+        <div class="log-main">
+            <div class="log-title"><a href="https://en.wikipedia.org/wiki/${encodeURIComponent(change.title)}" target="_blank">${change.title}</a></div>
+            <div class="log-user">by ${change.user}</div>
+        </div>
+        <div class="log-topics">${topicBadges}</div>
+    `;
+
+    logContainer.insertBefore(entry, logContainer.firstChild);
+    if (logContainer.children.length > 50) logContainer.removeChild(logContainer.lastChild);
+}
+
+// ==================== SUNBURST ====================
+let sunburstRoot = null;
+let sunburstSvg, sunburstG, sunburstRadius;
+
+function initSunburst() {
+    const container = document.getElementById('view-sunburst');
+    const svgEl = document.getElementById('sunburst-svg');
+    const size = Math.min(container.clientWidth, container.clientHeight) - 40;
+    sunburstRadius = size / 2;
+
+    sunburstSvg = d3.select('#sunburst-svg')
+        .attr('viewBox', `${-size/2} ${-size/2} ${size} ${size}`)
+        .attr('width', size)
+        .attr('height', size);
+    
+    sunburstSvg.selectAll('*').remove();
+
+    sunburstRoot = buildHierarchyData();
+    
+    const partition = d3.partition()
+        .size([2 * Math.PI, sunburstRadius * 0.85]);
+    
+    const root = partition(d3.hierarchy(sunburstRoot)
+        .sum(d => d.value || 0)
+        .sort((a, b) => b.value - a.value));
+
+    const arc = d3.arc()
+        .startAngle(d => d.x0)
+        .endAngle(d => d.x1)
+        .innerRadius(d => d.y0)
+        .outerRadius(d => d.y1 - 1);
+
+    sunburstG = sunburstSvg.append('g');
+
+    sunburstG.selectAll('path')
+        .data(root.descendants().filter(d => d.depth))
+        .join('path')
+        .attr('d', arc)
+        .attr('fill', d => getSunburstColor(d))
+        .attr('fill-opacity', 0.85)
+        .attr('stroke', '#0d1117')
+        .attr('stroke-width', 0.5)
+        .style('cursor', 'pointer')
+        .on('mouseover', function(event, d) {
+            d3.select(this).attr('fill-opacity', 1);
+            showSunburstTooltip(event, d);
+        })
+        .on('mouseout', function() {
+            d3.select(this).attr('fill-opacity', 0.85);
+            hideSunburstTooltip();
+        });
+
+    sunburstSvg.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('dy', '-0.3em')
+        .attr('font-size', '14px')
+        .attr('font-weight', 'bold')
+        .attr('fill', '#e6edf3')
+        .text('WikiEditTracker');
+    
+    sunburstSvg.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('dy', '1em')
+        .attr('font-size', '10px')
+        .attr('fill', '#8b949e')
+        .text('64 topics');
+}
+
+function buildHierarchyData() {
+    const data = { name: 'Wikipedia', children: [] };
+
+    Object.keys(TAXONOMY_TREE).forEach(cat => {
+        const catNode = {
+            name: cat,
+            color: CATEGORY_COLORS[cat],
+            children: []
+        };
+
+        TAXONOMY_TREE[cat].forEach(group => {
+            const groupNode = { name: group.name, children: [] };
+
+            group.subs.forEach(sub => {
+                groupNode.children.push({
+                    name: sub.replace(/_/g, ' '),
+                    topicId: sub,
+                    value: topicCounts[sub] || 0
+                });
+            });
+
+            if (group.id !== 'Americas') {
+                groupNode.children.push({
+                    name: '(General)',
+                    topicId: group.id,
+                    value: topicCounts[group.id] || 0
+                });
+            }
+
+            catNode.children.push(groupNode);
+        });
+
+        data.children.push(catNode);
+    });
+
+    return data;
+}
+
+function getSunburstColor(d) {
+    if (d.depth === 1) return d.data.color || CATEGORY_COLORS[d.data.name] || '#888';
+    if (d.depth === 2) return d3.color(d.parent.data.color || '#888').brighter(0.4).toString();
+    return d3.color(d.parent.data.color || '#888').brighter(0.8).toString();
+}
+
+function updateSunburst() {
+    if (currentView !== 'sunburst' || !sunburstG) return;
+    
+    sunburstRoot = buildHierarchyData();
+    
+    const partition = d3.partition()
+        .size([2 * Math.PI, sunburstRadius * 0.85]);
+    
+    const root = partition(d3.hierarchy(sunburstRoot)
+        .sum(d => d.value || 0)
+        .sort((a, b) => b.value - a.value));
+
+    const arc = d3.arc()
+        .startAngle(d => d.x0)
+        .endAngle(d => d.x1)
+        .innerRadius(d => d.y0)
+        .outerRadius(d => d.y1 - 1);
+
+    sunburstG.selectAll('path')
+        .data(root.descendants().filter(d => d.depth))
+        .transition()
+        .duration(300)
+        .attr('d', arc)
+        .attr('fill', d => getSunburstColor(d));
+}
+
+let sunburstTooltip = null;
+function showSunburstTooltip(event, d) {
+    if (!sunburstTooltip) {
+        sunburstTooltip = document.createElement('div');
+        sunburstTooltip.style.cssText = 'position:fixed;background:#161b22;border:1px solid #30363d;padding:8px 12px;border-radius:6px;font-size:12px;color:#e6edf3;pointer-events:none;z-index:1000;';
+        document.body.appendChild(sunburstTooltip);
+    }
+    sunburstTooltip.innerHTML = `<strong>${d.data.name}</strong><br>Edits: ${d.value || 0}`;
+    sunburstTooltip.style.left = (event.pageX + 10) + 'px';
+    sunburstTooltip.style.top = (event.pageY - 10) + 'px';
+    sunburstTooltip.style.display = 'block';
+}
+
+function hideSunburstTooltip() {
+    if (sunburstTooltip) sunburstTooltip.style.display = 'none';
+}
+
+// ==================== STREAM GRAPH ====================
+let streamSvg, streamWidth, streamHeight, streamMargin;
+const streamCategories = ['Culture', 'Geography', 'History_and_Society', 'STEM'];
+
+function initStreamGraph() {
+    const svgEl = document.getElementById('streamgraph-svg');
+    const legend = document.getElementById('stream-legend');
+    const container = document.getElementById('view-streamgraph');
+    
+    streamMargin = { top: 30, right: 30, bottom: 50, left: 60 };
+    streamWidth = svgEl.clientWidth - streamMargin.left - streamMargin.right;
+    streamHeight = svgEl.clientHeight - streamMargin.top - streamMargin.bottom;
+
+    streamSvg = d3.select('#streamgraph-svg')
+        .attr('viewBox', `0 0 ${svgEl.clientWidth} ${svgEl.clientHeight}`);
+    
+    streamSvg.selectAll('*').remove();
+    streamSvg.append('g').attr('id', 'stream-area');
+    streamSvg.append('g').attr('id', 'stream-x-axis');
+    streamSvg.append('g').attr('id', 'stream-y-axis');
+
+    legend.innerHTML = streamCategories.map(cat => `
+        <div class="legend-item">
+            <div class="legend-color" style="background: ${CATEGORY_COLORS[cat]}"></div>
+            <span>${cat.replace(/_/g, ' ')}</span>
+        </div>
+    `).join('');
+
+    updateStreamGraph();
+}
+
+function updateStreamGraph() {
+    if (currentView !== 'streamgraph') return;
+
+    const svgEl = document.getElementById('streamgraph-svg');
+    streamWidth = svgEl.clientWidth - streamMargin.left - streamMargin.right;
+    streamHeight = Math.max(100, svgEl.clientHeight - streamMargin.top - streamMargin.bottom);
+
+    const now = Date.now();
+    const cutoff = now - (streamGraphMinutes * 60 * 1000);
+    const recentEdits = editHistory.filter(e => e.time > cutoff);
+
+    const bucketSize = Math.max(5000, streamGraphMinutes * 1000 / 40);
+    const buckets = new Map();
+
+    for (let t = cutoff; t <= now; t += bucketSize) {
+        buckets.set(Math.floor(t / bucketSize), { 
+            time: Math.floor(t / bucketSize) * bucketSize, 
+            Culture: 0, Geography: 0, History_and_Society: 0, STEM: 0 
+        });
+    }
+
+    recentEdits.forEach(edit => {
+        const bucketKey = Math.floor(edit.time / bucketSize);
+        if (buckets.has(bucketKey)) {
+            buckets.get(bucketKey)[edit.category] = (buckets.get(bucketKey)[edit.category] || 0) + 1;
+        }
+    });
+
+    const data = Array.from(buckets.values()).sort((a, b) => a.time - b.time);
+    if (data.length < 2) return;
+
+    const x = d3.scaleTime()
+        .domain([data[0].time, data[data.length - 1].time])
+        .range([0, streamWidth]);
+
+    const stack = d3.stack()
+        .keys(streamCategories)
+        .offset(d3.stackOffsetWiggle);
+
+    const series = stack(data);
+
+    const yExtent = [
+        d3.min(series, s => d3.min(s, d => d[0])),
+        d3.max(series, s => d3.max(s, d => d[1]))
+    ];
+
+    const y = d3.scaleLinear()
+        .domain([yExtent[0], yExtent[1]])
+        .range([streamHeight, 0]);
+
+    const area = d3.area()
+        .x(d => x(d.data.time))
+        .y0(d => y(d[0]))
+        .y1(d => y(d[1]))
+        .curve(d3.curveBasis);
+
+    const g = streamSvg.select('#stream-area');
+    
+    const paths = g.selectAll('path.stream-path')
+        .data(series);
+
+    paths.enter()
+        .append('path')
+        .attr('class', 'stream-path')
+        .merge(paths)
+        .transition()
+        .duration(300)
+        .attr('d', area)
+        .attr('fill', d => CATEGORY_COLORS[d.key])
+        .attr('fill-opacity', 0.7);
+
+    paths.exit().remove();
+
+    streamSvg.select('#stream-x-axis')
+        .attr('transform', `translate(${streamMargin.left},${streamMargin.top + streamHeight})`)
+        .call(d3.axisBottom(x).ticks(6).tickFormat(d3.timeFormat('%H:%M')))
+        .selectAll('text').attr('fill', '#8b949e').attr('font-size', '10px');
+    streamSvg.select('#stream-x-axis').selectAll('line, path').attr('stroke', '#30363d');
+    
+    streamSvg.select('#stream-y-axis')
+        .attr('transform', `translate(${streamMargin.left},${streamMargin.top})`)
+        .call(d3.axisLeft(y).ticks(3))
+        .selectAll('text').attr('fill', '#8b949e').attr('font-size', '10px');
+    streamSvg.select('#stream-y-axis').selectAll('line, path').attr('stroke', '#30363d');
+}
+
+// ==================== SPARKLINES ====================
+function updateSparklines() {
+    if (currentView !== 'sparklines') return;
+
+    Object.keys(sparklineData).forEach(topicId => {
+        const canvas = document.getElementById(`sparkcanvas-${topicId}`);
+        const valueEl = document.getElementById(`sparkval-${topicId}`);
+        const data = sparklineData[topicId];
+
+        if (!data) return;
+
+        const sum = data.reduce((a, b) => a + b, 0);
+
+        if (valueEl) {
+            valueEl.textContent = sum;
+        }
+
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width;
+        const h = canvas.height;
+
+        ctx.clearRect(0, 0, w, h);
+        
+        if (data.length < 2) return;
+
+        const max = Math.max(...data, 1);
+        
+        const catKey = Object.keys(CATEGORY_COLORS).find(c => TOPIC_TO_CELL_ID[topicId]?.includes(c));
+        const strokeColor = CATEGORY_COLORS[catKey] || '#2196f3';
+
+        ctx.beginPath();
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 1.5;
+        
+        data.forEach((v, i) => {
+            const x = (i / (data.length - 1)) * w;
+            const y = h - (v / max) * (h - 4) - 2;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        ctx.lineTo(w, h);
+        ctx.lineTo(0, h);
+        ctx.closePath();
+        ctx.fillStyle = strokeColor + '25';
+        ctx.fill();
+    });
+}
+
+// ==================== VIEW SWITCHING ====================
+function switchView(view) {
+    currentView = view;
+    
+    document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === view);
+    });
+
+    document.querySelectorAll('.view-container').forEach(container => {
+        container.classList.remove('active');
+    });
+    document.getElementById(`view-${view}`).classList.add('active');
+
+    if (view === 'sunburst') {
+        setTimeout(initSunburst, 50);
+    } else if (view === 'streamgraph') {
+        setTimeout(initStreamGraph, 50);
+    } else if (view === 'sparklines') {
+        setTimeout(initSparklinesUI, 50);
+    }
+}
+
+// ==================== EVENT PROCESSING ====================
+async function processEdit(change) {
+    const eventId = change.meta?.id;
+    if (eventId) {
+        if (processedIds.has(eventId)) return;
+        processedIds.add(eventId);
+        if (processedIds.size > MAX_PROCESSED_IDS) {
+            const firstId = processedIds.values().next().value;
+            processedIds.delete(firstId);
+        }
+    }
+
+    stats.total++;
+    
+    if (change.server_name === 'en.wikipedia.org' && change.namespace === 0 && !change.meta.domain?.includes('canary')) {
+        stats.ns0++;
+        updateStats();
+        
+        const topics = await getTopics(change.title);
+        const threshold = parseFloat(confidenceSlider.value);
+        const filtered = topics.filter(t => t.score >= threshold);
+        
+        if (filtered.length > 0) {
+            const now = Date.now();
+            
+            filtered.forEach(t => {
+                const mapped = mapTopicToCell(t.topic);
+                const topicId = getTopicId(t.topic);
+                
+                topicCounts[topicId] = (topicCounts[topicId] || 0) + 1;
+                
+                editHistory.push({
+                    time: now,
+                    topic: topicId,
+                    category: mapped.category,
+                    confidence: t.score
+                });
+                
+                if (editHistory.length > MAX_HISTORY) {
+                    editHistory = editHistory.slice(-MAX_HISTORY);
+                }
+
+                if (sparklineData[topicId]) {
+                    sparklineData[topicId].push(1);
+                    if (sparklineData[topicId].length > 30) {
+                        sparklineData[topicId].shift();
+                    }
+                }
+
+                if (currentView === 'treemap') {
+                    addDot(mapped.cellId, mapped.category, t.score);
+                }
+            });
+            
+            addLogEntry(change, filtered);
+
+            if (currentView === 'sunburst') updateSunburst();
+        }
+    } else {
+        updateStats();
+    }
+}
+
+// ==================== EVENT STREAM ====================
+const source = new EventSource(EVENTSTREAM_URL);
+source.onmessage = async (e) => {
+    const change = JSON.parse(e.data);
+    processEdit(change);
+};
+
+// ==================== INTERVALS ====================
+setInterval(() => {
+    Object.keys(sparklineData).forEach(topicId => {
+        sparklineData[topicId].push(0);
+        if (sparklineData[topicId].length > 30) {
+            sparklineData[topicId].shift();
+        }
+    });
+    
+    updateSparklines();
+    updateRateStats();
+}, 2000);
+
+setInterval(() => {
+    if (currentView === 'streamgraph') {
+        updateStreamGraph();
+    }
+}, 5000);
+
+// ==================== EVENT LISTENERS ====================
+document.querySelectorAll('.view-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchView(btn.dataset.view));
+});
+
+document.querySelectorAll('.time-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        streamGraphMinutes = parseInt(btn.dataset.minutes);
+        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        updateStreamGraph();
+    });
+});
+
+confidenceSlider.oninput = () => confidenceValue.textContent = confidenceSlider.value;
+decaySlider.oninput = () => decayValue.textContent = decaySlider.value;
+
+window.addEventListener('resize', () => {
+    if (currentView === 'sunburst') initSunburst();
+    if (currentView === 'streamgraph') initStreamGraph();
+});
+
+// ==================== INIT ====================
+initTreemapUI();
+</script>
+</body>
+</html>
