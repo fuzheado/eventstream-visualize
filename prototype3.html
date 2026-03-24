@@ -367,6 +367,10 @@
             padding: 4px;
             display: flex;
             flex-direction: column;
+            flex: none;
+            width: 100%;
+            min-width: 100px;
+            max-width: 200px;
         }
 
         .sparkline-header {
@@ -491,7 +495,7 @@
             background: rgba(255,255,255,0.03);
         }
 
-        #single-sparklines { display: none; padding: 15px; overflow-y: auto; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; flex: 1; }
+        #single-sparklines { display: none; padding: 15px; overflow-y: auto; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; flex: 1; align-content: start; }
         #single-sparklines.active { display: grid; }
 
         .category-block {
@@ -626,7 +630,7 @@
         <button class="mode-btn" data-mode="treemap">Treemap</button>
         <button class="mode-btn" data-mode="sunburst">Sunburst</button>
         <button class="mode-btn" data-mode="log">Edit Log</button>
-        <button class="mode-btn" data-mode="sparks">Sparks</button>
+        <button class="mode-btn" data-mode="sparklines">Sparks</button>
     </div>
 
     <div class="controls">
@@ -854,16 +858,16 @@ function initSparklinesUI() {
         });
     });
 
-    const createCard = (topic) => {
+    const createCard = (topic, suffix = '') => {
         const card = document.createElement('div');
         card.className = 'sparkline-mini';
-        card.id = `sparkline-${topic.id}`;
+        card.id = `sparkline-${topic.id}${suffix}`;
         card.innerHTML = `
             <div class="sparkline-header">
                 <span class="sparkline-title">${topic.name}</span>
-                <span class="sparkline-value" id="sparkval-${topic.id}">0</span>
+                <span class="sparkline-value" id="sparkval-${topic.id}${suffix}">0</span>
             </div>
-            <canvas class="sparkline-canvas" id="sparkcanvas-${topic.id}" width="80" height="20"></canvas>
+            <canvas class="sparkline-canvas" id="sparkcanvas-${topic.id}${suffix}" width="80" height="20"></canvas>
         `;
         return card;
     };
@@ -872,7 +876,7 @@ function initSparklinesUI() {
         const card = createCard(topic);
         container.appendChild(card);
         
-        const cardSingle = createCard(topic);
+        const cardSingle = createCard(topic, '-single');
         containerSingle.appendChild(cardSingle);
         
         sparklineData[topic.id] = new Array(30).fill(0);
@@ -1075,8 +1079,8 @@ function renderFullLog() {
         
         entry.innerHTML = `
             <div class="log-time">${timeStr}</div>
-            <div class="log-title" style="color: ${catColor}">${topicName}</div>
-            <div class="log-topics" style="color: var(--text-dim)">${edit.category}</div>
+            <div class="log-title"><a href="https://en.wikipedia.org/wiki/${encodeURIComponent(edit.title)}" target="_blank">${edit.title}</a></div>
+            <div class="log-topics" style="color: ${catColor}">${topicName}</div>
         `;
         
         container.appendChild(entry);
@@ -1377,50 +1381,52 @@ function updateStreamGraph() {
 // ==================== SPARKLINES UPDATE ====================
 function updateSparklines() {
     Object.keys(sparklineData).forEach(topicId => {
-        const canvas = document.getElementById(`sparkcanvas-${topicId}`);
-        const valueEl = document.getElementById(`sparkval-${topicId}`);
         const data = sparklineData[topicId];
-
         if (!data) return;
 
         const sum = data.reduce((a, b) => a + b, 0);
 
-        if (valueEl) {
-            valueEl.textContent = sum;
-        }
+        ['-single', ''].forEach(suffix => {
+            const canvas = document.getElementById(`sparkcanvas-${topicId}${suffix}`);
+            const valueEl = document.getElementById(`sparkval-${topicId}${suffix}`);
 
-        if (!canvas) return;
+            if (valueEl) {
+                valueEl.textContent = sum;
+            }
 
-        const ctx = canvas.getContext('2d');
-        const w = canvas.width;
-        const h = canvas.height;
+            if (!canvas) return;
 
-        ctx.clearRect(0, 0, w, h);
-        
-        if (data.length < 2) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
 
-        const max = Math.max(...data, 1);
-        
-        const catKey = Object.keys(CATEGORY_COLORS).find(c => TOPIC_TO_CELL_ID[topicId]?.includes(c));
-        const strokeColor = CATEGORY_COLORS[catKey] || '#2196f3';
+            ctx.clearRect(0, 0, w, h);
+            
+            if (data.length < 2) return;
 
-        ctx.beginPath();
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 1;
-        
-        data.forEach((v, i) => {
-            const x = (i / (data.length - 1)) * w;
-            const y = h - (v / max) * (h - 2) - 1;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
+            const max = Math.max(...data, 1);
+            
+            const catKey = Object.keys(CATEGORY_COLORS).find(c => TOPIC_TO_CELL_ID[topicId]?.includes(c));
+            const strokeColor = CATEGORY_COLORS[catKey] || '#2196f3';
+
+            ctx.beginPath();
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 1;
+            
+            data.forEach((v, i) => {
+                const x = (i / (data.length - 1)) * w;
+                const y = h - (v / max) * (h - 2) - 1;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            ctx.lineTo(w, h);
+            ctx.lineTo(0, h);
+            ctx.closePath();
+            ctx.fillStyle = strokeColor + '25';
+            ctx.fill();
         });
-        ctx.stroke();
-
-        ctx.lineTo(w, h);
-        ctx.lineTo(0, h);
-        ctx.closePath();
-        ctx.fillStyle = strokeColor + '25';
-        ctx.fill();
     });
 }
 
@@ -1488,6 +1494,7 @@ async function processEdit(change) {
                 
                 editHistory.push({
                     time: now,
+                    title: change.title,
                     topic: topicId,
                     category: mapped.category,
                     confidence: t.score
@@ -1538,6 +1545,12 @@ setInterval(() => {
         updateStreamGraph();
     }
 }, 5000);
+
+setInterval(() => {
+    if (currentSingleView === 'log') {
+        renderFullLog();
+    }
+}, 1000);
 
 // ==================== EVENT LISTENERS ====================
 document.querySelectorAll('.mode-btn').forEach(btn => {
