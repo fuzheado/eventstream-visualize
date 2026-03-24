@@ -3,16 +3,43 @@
 A real-time visualization of Wikipedia edits organized by article topics using Wikimedia's [LiftWing Article Topic Model](https://api.wikimedia.org/service/lw/inference/v1/models/outlink-topic-model:predict).
 
 ## Overview
-WikiEditTracker connects to the Wikipedia [Recent Changes EventStream](https://stream.wikimedia.org/v2/stream/recentchange) and classifies each edit into one of 64 article topics. It visualizes these edits in real-time using a high-density treemap layout that packs categories edge-to-edge for maximum visibility.
+WikiEditTracker connects to the Wikipedia [Recent Changes EventStream](https://stream.wikimedia.org/v2/stream/recentchange) and classifies each edit into one of 64 article topics. It visualizes these edits in real-time using multiple visualization approaches.
 
-![screenshot](screenshot.png)
+## Versions
 
-### Architecture
-- **Front-end**: HTML5 / JavaScript (EventSource + Fetch)
-- **CORS Proxy**: Node.js / Express (handles LiftWing API security restrictions)
-- **Data Source**: Wikipedia EventStream (English Wikipedia, Namespace 0)
+### WikiEditTracker 3.0 (Recommended)
+**File: `prototype3.html`**
 
-## Getting Started
+The latest unified dashboard with three simultaneous visualizations:
+
+- **Treemap**: Compact grid of all 64 topics with live dot plotting showing edits
+- **Sunburst**: Radial hierarchy visualization of topic categories
+- **Sparklines**: Real-time activity charts for each topic
+- **Edit Log**: Live stream of recent Wikipedia edits
+
+Features:
+- Culture/Geography sections are larger (60%) due to more subcategories
+- History & Society/STEM are smaller (40%)
+- Dots appear below topic labels in the treemap
+- Immediate rendering on page load
+- Multiple view modes: Dashboard, Treemap, Sunburst, Edit Log, Sparks
+
+```bash
+# Open directly
+http://localhost:3000/prototype3.html
+```
+
+### WikiEditTracker 2.0
+**File: `prototype2.html`**
+
+Multi-view version with switchable tabs for each visualization.
+
+### WikiEditTracker 1.0
+**File: `prototype.html`**
+
+Original treemap visualization with high-density topic layout.
+
+## Quick Start
 
 ### 1. Prerequisites
 - Node.js (v14 or later recommended)
@@ -31,17 +58,17 @@ npm start
 The proxy will be available at `http://localhost:3001`.
 
 ### 4. Run the Visualization
-Open **`prototype.html`** in your browser.
-
-Alternatively, serve the files using a local web server to avoid local file restrictions:
+Serve the files using a local web server (required for EventSource compatibility):
 ```bash
-# Using Python
-python3 -m http.server 3000
+npx serve .
 ```
-Then visit: `http://localhost:3000/prototype.html`
+Then visit:
+- **Dashboard 3.0**: `http://localhost:3000/prototype3.html`
+- **Original**: `http://localhost:3000/prototype.html`
 
 ## Core Visualization Features
-- **High-Density Treemap**: 64 topics perfectly tiled across the viewport with weighted packing.
+
+- **High-Density Treemap**: 64 topics tiled across the viewport with weighted packing.
 - **Real-time Pulsing**: Edits appear as pulses in their respective topic cells; size/opacity reflects model confidence.
 - **Hierarchical Layout**: Topics are grouped into parent categories (Culture, Geography, History & Society, STEM) with regional sub-categories.
 - **Interactive Controls**: Adjust classification confidence thresholds and dot decay speed on the fly.

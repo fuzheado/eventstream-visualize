@@ -1,85 +1,101 @@
 # WikiEditTracker Progress Report v3
 
-## Current Status: Multi-View Unified Dashboard
+## Current Status: Unified Dashboard with Three-Pane Visualization
 
-We've created a unified dashboard that combines multiple visualization approaches into a single view.
+We've built a fully functional unified dashboard (WikiEditTracker 3.0) that renders correctly on page load with three simultaneous visualizations.
 
 ## What We Built
 
 ### prototype3.html - Unified Dashboard
 
-A single-page application showing all visualizations simultaneously:
+A single-page application showing three visualizations simultaneously:
 
 ```
 +------------------+------------------+
-|                  |   SUNBURST       |
-|   TREEMAP       |   (radial)       |
-|   (compact)      +------------------+
-|                  |   STREAM GRAPH   |
+|                  |                  |
+|   TREEMAP       |    SUNBURST      |
+|   (with dots)    |   (radial)       |
+|                  |                  |
 +------------------+------------------+
 |   SPARKLINES GRID                    |
++-------------------------------------+
+|   EDIT LOG (live stream)             |
 +-------------------------------------+
 ```
 
 ### Key Features
 
 1. **Compact Treemap** (left column)
-   - 4 category blocks stacked vertically
-   - Dots animate on topic activity
+   - Culture/Geography take 60% height (more categories)
+   - History & Society/STEM take 40% height (fewer categories)
+   - Dots animate on topic activity, positioned below labels
    - Same category color coding
 
-2. **Sunburst Radial Hierarchy** (top right)
+2. **Sunburst Radial Hierarchy** (center)
    - D3 partition layout showing hierarchical topic structure
+   - Renders immediately on page load
    - Hover for tooltips
    - Updates in real-time with edit activity
-   - *Known issue: D3 arc angle warnings in console (non-breaking)*
 
-3. **Stream Graph** (middle right)
-   - Stacked area chart showing topic proportions over rolling time
-   - Time window selector (5m, 15m, 30m)
-   - Updates every 5 seconds
-
-4. **Sparklines Grid** (bottom)
+3. **Sparklines Grid** (right column)
    - 64+ mini line charts for each topic
    - Shows activity over last ~1 minute
    - Color-coded by category
    - Updates every 2 seconds
 
+4. **Edit Log** (bottom)
+   - Live stream of recent Wikipedia edits
+   - Shows article titles, timestamps, and topic badges
+
 ### View Modes
 
-- **Dashboard** - All visualizations visible simultaneously
-- **Single View** - Full-screen versions of each visualization (Treemap, Sunburst, Stream, Sparks)
+- **Dashboard** - All visualizations visible simultaneously (default)
+- **Treemap** - Full-screen treemap with dots
+- **Sunburst** - Full-screen sunburst hierarchy
+- **Edit Log** - Full-screen edit stream
+- **Sparks** - Full-screen sparklines grid
+
+## Issues Resolved
+
+### Sunburst Rendering
+- **Problem**: Sunburst didn't render on initial page load
+- **Root Cause**: `updateSunburst()` used `.transition()` which only updated existing paths, not creating new ones
+- **Solution**: Used D3's `.join()` pattern with proper enter/update/exit handlers
+- **Additional**: Removed arc transitions that caused invalid SVG path errors
+
+### Sunburst Arc Errors
+- **Problem**: D3 arc generator produced invalid SVG paths when angles exceeded 2π
+- **Solution**: Clamp end angles and filter arcs where `(d.x1 - d.x0) < 0.001` or `d.value === 0`
+
+### Mini-Treemap Dot Plotting
+- **Problem**: Dots only appeared in full treemap, not in dashboard mini-treemap
+- **Root Cause**: `initFullTreemapUI()` overwrote `TOPIC_TO_CELL_ID` mappings
+- **Solution**: Created separate `MINI_TOPIC_TO_CELL_ID` for mini cells
+
+### Dot Positioning
+- **Problem**: Dots appeared on top of topic labels
+- **Solution**: Restructured topic chips with label at top, dot container below
+- Added `.topic-chip-dots` container for dots to appear in
 
 ## Technical Notes
-
-### Issues Resolved
-- Missing `stat-api` element causing errors
-- SVG viewBox negative dimensions when container too small
-- Stream graph height calculation fix
-- Sunburst arc angle clamping for D3
-
-### Known Issues
-- Sunburst: D3 generates arc warnings when angles approach 2π (visual output is correct)
-- Some API calls return 404/503 - LiftWing service availability
 
 ### Data Flow
 1. Wikipedia EventStream → `processEdit()`
 2. Filter by namespace 0 (articles) and confidence threshold
 3. Categorize via `/predict` API
 4. Update all visualizations:
-   - Treemap dots
+   - Treemap dots (both full and mini)
    - Sunburst hierarchy
-   - Stream graph buckets
    - Sparkline arrays
    - Edit history log
 
-## Files
+### Key Files
 
 | File | Description |
 |------|-------------|
 | `prototype.html` | Original treemap visualization |
 | `prototype2.html` | Multi-view with switchable tabs |
-| `prototype3.html` | Unified dashboard (current) |
+| `prototype3.html` | Unified dashboard 3.0 (current) |
 | `server.js` | CORS proxy for topic classification |
 
 ## Running
@@ -88,7 +104,7 @@ A single-page application showing all visualizations simultaneously:
 # Start proxy
 npm start
 
-# Serve locally (for EventSource compatibility)
+# Serve locally (for EventStream compatibility)
 npx serve .
 
 # Open
@@ -97,8 +113,9 @@ http://localhost:3000/prototype3.html
 
 ## Next Steps Ideas
 
-1. Fix D3 arc warnings in sunburst
-2. Add zoom/click-to-drill-down to sunburst
-3. Persist view preference in localStorage
-4. Add keyboard shortcuts for view switching
-5. Export/copy functionality for data
+1. Add zoom/click-to-drill-down to sunburst
+2. Persist view preference in localStorage
+3. Add keyboard shortcuts for view switching
+4. Export/copy functionality for data
+5. Add filtering by category
+6. Add time range selector
