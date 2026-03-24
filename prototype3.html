@@ -131,8 +131,8 @@
         main {
             flex: 1;
             display: grid;
-            grid-template-columns: 1.2fr 1fr;
-            grid-template-rows: 1fr 1fr;
+            grid-template-columns: 1.2fr 1fr 1fr;
+            grid-template-rows: 1fr;
             gap: 3px;
             padding: 3px;
             background: #000;
@@ -168,8 +168,6 @@
 
         /* Treemap Panel - Left Column */
         #panel-treemap {
-            grid-row: 1 / 3;
-            grid-column: 1;
             display: grid;
             grid-template-rows: auto 1fr;
         }
@@ -312,13 +310,13 @@
 
         /* Sparklines Panel - Right Column */
         #panel-sparklines {
-            grid-column: 2;
-            grid-row: 1 / 3;
+            display: flex;
+            flex-direction: column;
         }
 
         #sparklines-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
             gap: 4px;
             padding: 4px;
             overflow-y: auto;
@@ -609,7 +607,7 @@
 
 <!-- Dashboard Mode -->
 <main class="dashboard-container" id="dashboard">
-    <!-- Treemap Panel - Left Column, Full Height -->
+    <!-- Treemap Panel - Left Column -->
     <div class="panel" id="panel-treemap">
         <div class="panel-header">Topic Activity</div>
         <div class="treemap-inner">
@@ -632,9 +630,17 @@
         </div>
     </div>
 
-    <!-- Sparklines Panel - Right Column (full height) -->
+    <!-- Sunburst Panel - Middle -->
+    <div class="panel" id="panel-sunburst">
+        <div class="panel-header">Hierarchy</div>
+        <div class="panel-content">
+            <svg id="sunburst-svg"></svg>
+        </div>
+    </div>
+
+    <!-- Sparklines Panel - Right Column -->
     <div class="panel" id="panel-sparklines">
-        <div class="panel-label">Topic Trends</div>
+        <div class="panel-header">Topic Trends</div>
         <div id="sparklines-grid"></div>
     </div>
 </main>
@@ -1007,7 +1013,8 @@ function initSunburst() {
     sunburstRoot = buildHierarchyData();
     
     const partition = d3.partition()
-        .size([2 * Math.PI, sunburstRadius * 0.85]);
+        .size([2 * Math.PI, sunburstRadius * 0.85])
+        .padding(0.005);
     
     const root = partition(d3.hierarchy(sunburstRoot)
         .sum(d => d.value || 0)
@@ -1015,13 +1022,14 @@ function initSunburst() {
 
     const arc = d3.arc()
         .startAngle(d => {
-            const angle = d.x0;
-            return (angle && isFinite(angle)) ? Math.max(0, angle) : 0;
+            const angle = d.x0 || 0;
+            return Math.max(0, Math.min(angle, 2 * Math.PI));
         })
         .endAngle(d => {
-            const angle = d.x1;
-            const maxAngle = 2 * Math.PI - 0.001;
-            return (angle && isFinite(angle)) ? Math.min(maxAngle, angle) : maxAngle;
+            let angle = d.x1 || 0;
+            angle = Math.min(angle, 2 * Math.PI);
+            if (angle <= (d.x0 || 0) + 0.0001) angle = (d.x0 || 0) + 0.001;
+            return angle;
         })
         .innerRadius(d => d.y0 || 0)
         .outerRadius(d => Math.max(0, (d.y1 || 0) - 1));
@@ -1029,7 +1037,7 @@ function initSunburst() {
     sunburstG = sunburstSvg.append('g');
 
     sunburstG.selectAll('path')
-        .data(root.descendants().filter(d => d.depth))
+        .data(root.descendants().filter(d => d.depth && (d.x1 - d.x0) > 0.001))
         .join('path')
         .attr('d', arc)
         .attr('fill', d => getSunburstColor(d))
@@ -1105,7 +1113,8 @@ function updateSunburst() {
     sunburstRoot = buildHierarchyData();
     
     const partition = d3.partition()
-        .size([2 * Math.PI, sunburstRadius * 0.85]);
+        .size([2 * Math.PI, sunburstRadius * 0.85])
+        .padding(0.005);
     
     const root = partition(d3.hierarchy(sunburstRoot)
         .sum(d => d.value || 0)
@@ -1113,19 +1122,20 @@ function updateSunburst() {
 
     const arc = d3.arc()
         .startAngle(d => {
-            const angle = d.x0;
-            return (angle && isFinite(angle)) ? Math.max(0, angle) : 0;
+            const angle = d.x0 || 0;
+            return Math.max(0, Math.min(angle, 2 * Math.PI));
         })
         .endAngle(d => {
-            const angle = d.x1;
-            const maxAngle = 2 * Math.PI - 0.001;
-            return (angle && isFinite(angle)) ? Math.min(maxAngle, angle) : maxAngle;
+            let angle = d.x1 || 0;
+            angle = Math.min(angle, 2 * Math.PI);
+            if (angle <= (d.x0 || 0) + 0.0001) angle = (d.x0 || 0) + 0.001;
+            return angle;
         })
         .innerRadius(d => d.y0 || 0)
         .outerRadius(d => Math.max(0, (d.y1 || 0) - 1));
 
     sunburstG.selectAll('path')
-        .data(root.descendants().filter(d => d.depth))
+        .data(root.descendants().filter(d => d.depth && (d.x1 - d.x0) > 0.001))
         .transition()
         .duration(300)
         .attr('d', arc)
@@ -1454,6 +1464,11 @@ window.addEventListener('resize', () => {
 initMiniTreemapUI();
 initFullTreemapUI();
 initSparklinesUI();
+
+// Initialize sunburst on dashboard
+setTimeout(() => {
+    initSunburst();
+}, 100);
 </script>
 </body>
 </html>
