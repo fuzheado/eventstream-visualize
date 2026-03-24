@@ -103,6 +103,7 @@
             display: flex;
             flex-direction: column;
             border-top: 4px solid #555;
+            overflow: hidden;
         }
 
         .category-block.culture { border-color: var(--culture); }
@@ -120,33 +121,65 @@
 
         .topic-grid {
             flex: 1;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-            gap: 5px;
             padding: 10px;
             overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* Hierarchical Box Styles */
+        .topic-group {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            padding: 8px;
+            border: 1px solid #444;
+            position: relative;
+        }
+
+        .group-header {
+            font-size: 0.75em;
+            font-weight: bold;
+            color: #ddd;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .group-subs {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+            gap: 4px;
         }
 
         .topic-cell {
             background: var(--card);
             border-radius: 4px;
-            padding: 5px;
-            min-height: 50px;
+            padding: 4px;
+            min-height: 40px;
             position: relative;
-            font-size: 0.7em;
+            font-size: 0.65em;
             text-align: center;
             display: flex;
             flex-direction: column;
             justify-content: flex-start;
-            border: 1px solid #444;
-            transition: transform 0.1s;
+            border: 1px solid #333;
+            transition: background 0.2s;
+        }
+
+        .topic-cell.is-generic {
+            background: rgba(255, 255, 255, 0.1);
+            border-style: dashed;
         }
 
         .topic-name {
-            color: #bbb;
-            margin-bottom: 5px;
+            color: #999;
+            margin-bottom: 2px;
             z-index: 2;
             pointer-events: none;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         /* Dots */
@@ -156,7 +189,7 @@
             height: 8px;
             border-radius: 50%;
             transform: translate(-50%, -50%);
-            z-index: 1;
+            z-index: 5;
             pointer-events: none;
             box-shadow: 0 0 8px rgba(255,255,255,0.5);
             animation: appear 0.3s ease-out;
@@ -165,11 +198,6 @@
         @keyframes appear {
             from { transform: translate(-50%, -50%) scale(0); opacity: 0; }
             to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-        }
-
-        .dot.fade-out {
-            opacity: 0;
-            transition: opacity 2s ease-out;
         }
 
         /* Log Area */
@@ -274,35 +302,32 @@
     const EVENTSTREAM_URL = 'https://stream.wikimedia.org/v2/stream/recentchange';
     const PROXY_URL = 'http://localhost:3001/predict';
     
-    // Taxonomy setup (Mapping all known and implied topics)
-    const TAXONOMY = {
-        'Culture': ['Biography', 'Food_and_drink', 'Internet_culture', 'Language', 'Literature', 'Entertainment', 'Films', 'Music', 'Radio', 'Software', 'Television', 'Video_games', 'Visual_arts', 'Philosophy_and_religion', 'Sports', 'General'],
-        'Geography': ['Africa', 'Americas', 'Asia', 'Europe', 'Oceania', 'General'],
-        'History_and_Society': ['Business', 'Economics', 'Education', 'History', 'Military', 'Politics', 'Society', 'Transportation', 'General'],
-        'STEM': ['Biology', 'Chemistry', 'Computing', 'Earth_and_environment', 'Engineering', 'Mathematics', 'Medicine_&_Health', 'Physics', 'Space', 'Technology', 'General']
+    // Hierarchical Taxonomy Definition
+    const TAXONOMY_TREE = {
+        'Culture': [
+            { id: 'Biography', name: 'Biography', subs: ['Women'] },
+            { id: 'Media', name: 'Media', subs: ['Books', 'Entertainment', 'Films', 'Music', 'Radio', 'Software', 'Television', 'Video_games'] },
+            { id: 'Visual_arts', name: 'Visual Arts', subs: ['Architecture', 'Comics_and_Anime', 'Fashion'] },
+            { id: 'Misc_Culture', name: 'Culture (Other)', subs: ['Food_and_drink', 'Internet_culture', 'Linguistics', 'Literature', 'Performing_arts', 'Philosophy_and_religion', 'Sports'] }
+        ],
+        'Geography': [
+            { id: 'Africa', name: 'Africa', subs: ['Central_Africa', 'Eastern_Africa', 'Northern_Africa', 'Southern_Africa', 'Western_Africa'] },
+            { id: 'Americas', name: 'Americas', subs: ['Central_America', 'North_America', 'South_America'] },
+            { id: 'Asia', name: 'Asia', subs: ['Central_Asia', 'East_Asia', 'North_Asia', 'South_Asia', 'Southeast_Asia', 'West_Asia'] },
+            { id: 'Europe', name: 'Europe', subs: ['Eastern_Europe', 'Northern_Europe', 'Southern_Europe', 'Western_Europe'] },
+            { id: 'Other_Regions', name: 'Other', subs: ['Oceania', 'Geographical'] }
+        ],
+        'History_and_Society': [
+            { id: 'Society_Group', name: 'History & Society', subs: ['Business_and_economics', 'Education', 'History', 'Military_and_warfare', 'Politics_and_government', 'Society', 'Transportation'] }
+        ],
+        'STEM': [
+            { id: 'STEM_Group', name: 'STEM', subs: ['Biology', 'Chemistry', 'Computing', 'Earth_and_environment', 'Engineering', 'Libraries_&_Information', 'Mathematics', 'Medicine_&_Health', 'Physics', 'Space', 'Technology'] }
+        ]
     };
 
-    // Mapping helper
-    function mapTopicToCell(topicString) {
-        const parts = topicString.split('.');
-        const parent = parts[0];
-        let sub = parts[parts.length - 1].replace(/\*$/, '');
-        
-        // Specific mapping overrides to match our grid IDs
-        if (sub.includes('visual_arts')) sub = 'Visual_arts';
-        if (sub.includes('biography')) sub = 'Biography';
-        if (sub.includes('business')) sub = 'Business';
-        if (sub.includes('politics')) sub = 'Politics';
-        if (sub === 'STEM') sub = 'General';
-
-        const category = TAXONOMY[parent] ? parent : 'Unknown';
-        const topic = (TAXONOMY[parent] && TAXONOMY[parent].some(t => sub.includes(t))) 
-            ? TAXONOMY[parent].find(t => sub.includes(t)) 
-            : 'General';
-            
-        return { category, topic, full: topicString };
-    }
-
+    // Flatten for easy lookup
+    const TOPIC_TO_CELL_ID = {};
+    
     // State
     let stats = { total: 0, ns0: 0, api: 0, hits: 0, misses: 0 };
     const topicCache = new Map();
@@ -315,17 +340,71 @@
     const decaySlider = document.getElementById('decay-slider');
     const decayValue = document.getElementById('decay-value');
     
-    // Initialize Grid
-    Object.keys(TAXONOMY).forEach(cat => {
-        const grid = document.getElementById(`grid-${cat}`);
-        TAXONOMY[cat].forEach(topic => {
-            const cell = document.createElement('div');
-            cell.className = 'topic-cell';
-            cell.id = `cell-${cat}-${topic}`;
-            cell.innerHTML = `<div class="topic-name">${topic.replace(/_/g, ' ')}</div>`;
-            grid.appendChild(cell);
+    // Initialize Hierarchical Grid
+    function initUI() {
+        Object.keys(TAXONOMY_TREE).forEach(cat => {
+            const grid = document.getElementById(`grid-${cat}`);
+            TAXONOMY_TREE[cat].forEach(group => {
+                const groupEl = document.createElement('div');
+                groupEl.className = 'topic-group';
+                
+                groupEl.innerHTML = `
+                    <div class="group-header">
+                        <span>${group.name}</span>
+                    </div>
+                    <div class="group-subs" id="subs-${group.id}"></div>
+                `;
+                
+                grid.appendChild(groupEl);
+                const subsContainer = groupEl.querySelector(`#subs-${group.id}`);
+                
+                // Add Generic Cell for the group (the * category)
+                const genericCell = document.createElement('div');
+                genericCell.className = 'topic-cell is-generic';
+                genericCell.id = `cell-${cat}-${group.id}-generic`;
+                genericCell.innerHTML = `<div class="topic-name">(General)</div>`;
+                subsContainer.appendChild(genericCell);
+                
+                // Map group id to its generic cell
+                TOPIC_TO_CELL_ID[group.id] = genericCell.id;
+
+                // Add Sub-Topic Cells
+                group.subs.forEach(sub => {
+                    const cell = document.createElement('div');
+                    cell.className = 'topic-cell';
+                    cell.id = `cell-${cat}-${sub}`;
+                    cell.innerHTML = `<div class="topic-name">${sub.replace(/_/g, ' ')}</div>`;
+                    subsContainer.appendChild(cell);
+                    TOPIC_TO_CELL_ID[sub] = cell.id;
+                });
+            });
         });
-    });
+    }
+
+    initUI();
+
+    function mapTopicToCell(topicString) {
+        const parts = topicString.split('.').map(p => p.replace(/\*$/, ''));
+        const cat = parts[0];
+        
+        // Try exact match on last part
+        for (let i = parts.length - 1; i >= 1; i--) {
+            const part = parts[i];
+            // Fix specific mismatches
+            const cleanPart = part === 'STEM' ? 'STEM_Group' : part;
+            
+            if (TOPIC_TO_CELL_ID[cleanPart]) {
+                return { cellId: TOPIC_TO_CELL_ID[cleanPart], category: cat };
+            }
+        }
+        
+        // Fallback to "Other" or "Misc" groups if defined, else stem general
+        const fallback = cat === 'Culture' ? 'Misc_Culture' : 
+                         cat === 'Geography' ? 'Other_Regions' :
+                         cat === 'STEM' ? 'STEM_Group' : 'Society_Group';
+                         
+        return { cellId: TOPIC_TO_CELL_ID[fallback], category: cat };
+    }
 
     function updateStats() {
         document.getElementById('stat-total').textContent = stats.total;
@@ -337,8 +416,8 @@
         document.getElementById('stat-cache').textContent = rate + '%';
     }
 
-    function addDot(category, topic, confidence) {
-        const cell = document.getElementById(`cell-${category}-${topic}`);
+    function addDot(cellId, category, confidence) {
+        const cell = document.getElementById(cellId);
         if (!cell) return;
 
         const dot = document.createElement('div');
@@ -347,15 +426,13 @@
         dot.style.opacity = Math.max(0.3, confidence);
         dot.style.width = dot.style.height = (4 + confidence * 10) + 'px';
         
-        // Random pos
+        // Random pos within cell
         dot.style.left = (Math.random() * 80 + 10) + '%';
         dot.style.top = (Math.random() * 60 + 25) + '%';
         
         cell.appendChild(dot);
         
         const decayTime = parseInt(decaySlider.value) * 1000;
-        
-        // Use transition for fade
         setTimeout(() => {
             dot.style.transition = `opacity ${Math.min(2000, decayTime / 2)}ms ease-out`;
             dot.style.opacity = 0;
@@ -452,7 +529,7 @@
             if (filtered.length > 0) {
                 filtered.forEach(t => {
                     const mapped = mapTopicToCell(t.topic);
-                    addDot(mapped.category, mapped.topic, t.score);
+                    addDot(mapped.cellId, mapped.category, t.score);
                 });
                 addLogEntry(change, filtered);
             }
