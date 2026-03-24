@@ -10,6 +10,28 @@ Create a real-time visualization web app that monitors live Wikipedia edits and 
 - Allow users to explore editing patterns by topic in real time.
 
 ### 3. System Architecture (High‑Level)
+
+#### 3.1 Backend-Optional Architecture (Recommended for Simplicity)
+For a minimal deployment, the entire application can run in the client web browser:
+```
++-------------------+      +----------------------+      +---------------------+
+| EventStreams (SSE)| ---> |  Browser Client      | ---> | LiftWing API        |
+| (recentchange)    |      | (React + vanilla JS) |      | (direct fetch)      |
++-------------------+      +----------------------+      +---------------------+
+       ^                         |                          |
+       |                         v                          v
+       |               +------------------+        +------------------+
+       |               | Topic Cache (Map)|        | Visualization    |
+       |               | (in-memory TTL)  |        | (D3/Canvas)      |
+       |               +------------------+        +------------------+
+       |                         |                          |
+       +-------------------------+--------------------------+
+                                 |
+                         User Interaction/Controls
+```
+
+#### 3.2 Scalable Backend Architecture (Alternative)
+For higher throughput or additional features (e.g., edit history aggregation), a backend can be added:
 ```
 +-------------------+      +---------------------+      +----------------------+
 | EventStreams (SSE)| ---> |  Stream Processor   | ---> | Topic Classifier Svc |
@@ -24,11 +46,21 @@ Create a real-time visualization web app that monitors live Wikipedia edits and 
 ```
 
 ### 4. Data Pipeline
+
+#### 4.1 Client-Only Pipeline (Default)
+| Step | Component | Input | Output | Notes |
+|------|-----------|-------|--------|-------|
+| 1 | EventStreams Client | SSE endpoint `https://stream.wikimedia.org/v2/stream/recentchange` | Raw JSON change events | Discard canary events (`meta.domain === 'canary'`). |
+| 2 | Browser Filter | Raw change events | `{title, user, timestamp}` | Keep only English Wikipedia (`server_name === 'en.wikipedia.org'`). Optionally deduplicate by `title` or use a Set for recent titles. |
+| 3 | Browser Topic Cache | `title` | `{[topic]: confidence}` (64‑dim vector) | Call LiftWing API directly; cache results in-memory with TTL (e.g., 5 min) to avoid repeat calls for same title. |
+| 4 | Browser Visualizer | `{title, user, timestamp, topic vector}` | Visual updates | Render edit as dot in topic region; size/opacity scaled by confidence. |
+
+#### 4.2 Backend-Assisted Pipeline (Alternative)
 | Step | Component | Input | Output | Notes |
 |------|-----------|-------|--------|-------|
 | 1 | EventStreams Client | SSE endpoint `https://stream.wikimedia.org/v2/stream/recentchange` | Raw JSON change events | Discard canary events (`meta.domain === 'canary'`). |
 | 2 | Stream Processor | Raw change events | `{title, wiki, rev_id, user, timestamp}` | Keep only English Wikipedia (`wiki === 'enwiki'`). Optionally deduplicate by `rev_id`. |
-| 3 | Topic Classifier | `rev_id` (or page title) | `{[topic]: confidence}` (64‑dim vector) | Call LiftWing API (`/service/lw/inference/v1/models/outlink-topic-model:predict`). Cache results for a short TTL (e.g., 5 min). |
+| 3 | Topic Classifier Service | `rev_id` (or page title) | `{[topic]: confidence}` (64‑dim vector) | Call LiftWing API (`/service/lw/inference/v1/models/outlink-topic-model:predict`). Cache results in Redis for a short TTL (e.g., 5 min). |
 | 4 | Enrichment Service (optional) | `{title, ..., topic vector}` | `{title, ..., dominant_topic, confidence}` | Pick topic with max confidence; keep full vector for intensity encoding. |
 | 5 | Frontend Receiver | Enriched edit events | Visual updates | Delivered via WebSocket (Socket.IO) or server‑sent events from a thin Node/Express layer. |
 
@@ -40,20 +72,25 @@ Create a real-time visualization web app that monitors live Wikipedia edits and 
 - **Animation**: Dot appears, fades out over 2‑3 seconds.
 - **Interaction**: Hover → tooltip with title, editor, timestamp, top‑3 topics. Click → open article.
 - **Controls**: Filter by top‑level category, confidence threshold slider, pause/resume.
-- **Tech Stack**: React (or Preact), D3.js or Canvas, Socket.IO client, CSS Grid/Flexbox.
+- **Tech Stack**: 
+  - For client-only: React (or Preact), D3.js or Canvas, native EventSource/fetch, CSS Grid/Flexbox.
+  - For backend-assisted: Same as above plus Socket.IO client for real‑time updates from server.
 
-### 6. Backend Services
-- **Stream Processor (Node.js/TypeScript)**
+### 6. Backend Services (Optional)
+
+The backend services below are only needed if you choose the scalable architecture. For the client-only approach, all processing happens in the browser.
+
+- **Stream Processor (Node.js/TypeScript)** [Optional]
   - Uses `wikimedia-streams` or native `EventSource`.
   - Emits enriched events to Redis Pub/Sub or directly to WebSocket server.
-- **Topic Classifier Service**
+- **Topic Classifier Service** [Optional]
   - Wrapper around LiftWing API with retry/backoff, rate‑limit handling.
   - Caches results in Redis (`GETSETEX <key> 300 <json>`).
   - Exposes internal HTTP endpoint (`/classify/:rev_id` or `/classify?title=`).
-- **WebSocket Server (Node.js + Socket.io)**
+- **WebSocket Server (Node.js + Socket.io)** [Optional]
   - Subscribes to Redis Pub/Sub, broadcasts to clients.
   - Optionally performs client‑side filtering.
-- **API Gateway (optional)**
+- **API Gateway (optional)** [Optional]
   - Express server serving static React build, health checks, internal service proxy.
 
 ### 7. APIs & Integration Points

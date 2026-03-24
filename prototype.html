@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikipedia Edit Topic Prototype</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #log { height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; }
+        .edit { margin-bottom: 10px; padding: 10px; background: #f9f9f9; border-radius: 4px; }
+        .title { font-weight: bold; }
+        .topics { margin-top: 5px; font-size: 0.9em; color: #555; }
+    </style>
+</head>
+<body>
+    <h1>Wikipedia Edit Topic Prototype</h1>
+    <div id="status">Connecting to Wikipedia EventStream...</div>
+    <div id="log"></div>
+
+    <script>
+        // Configuration
+        const EVENTSTREAM_URL = 'https://stream.wikimedia.org/v2/stream/recentchange';
+        const LIFTWING_API_URL = 'https://api.wikimedia.org/service/lw/inference/v1/models/outlink-topic-model:predict';
+        const USER_AGENT = 'eventstream-visualize-prototype/1.0 (https://github.com/yourname/eventstream-visualize)';
+
+        // Simple in-memory cache with 5-minute TTL
+        const topicCache = new Map();
+        const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+        // Get topics for a page title from LiftWing API
+        async function getTopics(pageTitle) {
+            const now = Date.now();
+            
+            // Check cache
+            const cached = topicCache.get(pageTitle);
+            if (cached && (now - cached.timestamp < CACHE_TTL)) {
+                return cached.data;
+            }
+            
+            // Call API
+            try {
+                const response = await fetch(LIFTWING_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'User-Agent': USER_AGENT
+                    },
+                    body: JSON.stringify({
+                        page_title: pageTitle,
+                        lang: 'en',
+                        threshold: 0.1
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                const results = data.prediction.results;
+                
+                // Update cache
+                topicCache.set(pageTitle, { timestamp: now, data: results });
+                
+                // Optional: limit cache size to prevent memory growth
+                if (topicCache.size > 1000) {
+                    // Remove oldest entry
+                    const oldestKey = Array.from(topicCache.keys()).reduce((a, b) => 
+                        topicCache.get(a).timestamp < topicCache.get(b).timestamp ? a : b
+                    );
+                    topicCache.delete(oldestKey);
+                }
+                
+                return results;
+            } catch (error) {
+                console.error('Topic lookup failed:', error);
+                return []; // Return empty array to avoid breaking visualization
+            }
+        }
+
+        // Process a Wikipedia change event
+        async function processChange(change) {
+            // Filter: only English Wikipedia and not a bot (optional)
+            if (change.server_name !== 'en.wikipedia.org') {
+                return;
+            }
+            
+            // Filter out canary events
+            if (change.meta && change.meta.domain === 'canary') {
+                return;
+            }
+            
+            const title = change.title;
+            const user = change.user || 'unknown';
+            const timestamp = new Date(change.meta ? change.meta.dt * 1000 : Date.now()).toLocaleTimeString();
+            
+            // Get topics
+            const topics = await getTopics(title);
+            
+            // Create log entry
+            const logDiv = document.getElementById('log');
+            const editDiv = document.createElement('div');
+            editDiv.className = 'edit';
+            
+            editDiv.innerHTML = `
+                <div class="title">[${timestamp}] ${user} edited "<a href="https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}" target="_blank">${title}</a>"</div>
+                <div class="topics">
+                    Topics: ${topics.map(t => `${t.topic} (${t.score.toFixed(2)})`).join(', ') || 'None'}
+                </div>
+            `;
+            
+            // Add to top of log
+            logDiv.insertBefore(editDiv, logDiv.firstChild);
+            
+            // Limit number of displayed edits
+            while (logDiv.children.length > 50) {
+                logDiv.removeChild(logDiv.lastChild);
+            }
+        }
+
+        // Connect to EventStream
+        const eventSource = new EventSource(EVENTSTREAM_URL, {
+            headers: { 'User-Agent': USER_AGENT }
+        });
+
+        eventSource.onopen = () => {
+            document.getElementById('status').textContent = 'Connected to Wikipedia EventStream';
+        };
+
+        eventSource.onerror = (err) => {
+            console.error('EventSource error:', err);
+            document.getElementById('status').textContent = 'Error connecting to EventStream';
+        };
+
+        eventSource.onmessage = (event) => {
+            try {
+                const change = JSON.parse(event.data);
+                processChange(change);
+            } catch (e) {
+                console.error('Failed to parse event:', e);
+            }
+        };
+    </script>
+</body>
+</html>
