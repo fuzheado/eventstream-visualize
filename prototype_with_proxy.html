@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikipedia Edit Topic Visualization</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        #header { text-align: center; margin-bottom: 20px; }
+        #status { padding: 10px; background: #e3f2fd; border-radius: 4px; margin-bottom: 20px; }
+        #stats { display: flex; gap: 20px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; }
+        .stat { background: white; padding: 10px 15px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .stat-value { font-size: 1.5em; font-weight: bold; color: #1976d2; display: block; }
+        .stat-label { font-size: 0.9em; color: #666; }
+        #visualization { background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
+        #topic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 20px; }
+        .topic-cell { border: 1px solid #eee; border-radius: 4px; padding: 10px; min-height: 80px; position: relative; background: #fafafa; }
+        .topic-cell.empty { color: #ccc; font-style: italic; text-align: center; padding-top: 30px; }
+        .topic-header { font-weight: bold; font-size: 0.9em; margin-bottom: 5px; color: #333; }
+        .edit-dot { width: 12px; height: 12px; border-radius: 50%; background: #1976d2; position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); opacity: 0.8; transition: opacity 0.3s ease; }
+        .edit-dot.recent { opacity: 1; animation: pulse 2s infinite; }
+        @keyframes pulse {
+          0% { transform: translateX(-50%) scale(1); }
+          50% { transform: translateX(-50%) scale(1.3); }
+          100% { transform: translateX(-50%) scale(1); }
+        }
+        .edit-info { position: absolute; top: 5px; left: 5px; right: 5px; font-size: 0.8em; color: #666; }
+        .topic-tag { display: inline-block; background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 3px; font-size: 0.75em; margin: 2px; }
+        .no-edits { text-align: center; color: #999; font-style: italic; padding: 20px; }
+        .controls { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .control-group { margin-bottom: 10px; }
+        .control-label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .control-input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        #footer { text-align: center; margin-top: 30px; color: #666; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>Wikipedia Edit Topic Visualization</h1>
+        <p>Real-time visualization of Wikipedia edits organized by article topics</p>
+    </div>
+    
+    <div id="status">Initializing...</div>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label class="control-label" for="confidenceThreshold">Minimum Confidence Threshold:</label>
+            <input type="range" id="confidenceThreshold" min="0" max="1" step="0.1" value="0.2">
+            <span id="thresholdValue">0.2</span>
+        </div>
+        <div class="control-group">
+            <label class="control-label" for="topicFilter">Show Topics:</label>
+            <select id="topicFilter" multiple>
+                <option value="Culture">Culture</option>
+                <option value="Geography">Geography</option>
+                <option value="History_and_Society">History & Society</option>
+                <option value="STEM">STEM</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <button id="clearButton" style="padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">Clear Visualization</button>
+        </div>
+    </div>
+    
+    <div id="stats">
+        <div class="stat">
+            <span class="stat-value" id="editsPerMinute">0</span>
+            <span class="stat-label">Edits/Minute</span>
+        </div>
+        <div class="stat">
+            <span class="stat-value" id="totalEdits">0</span>
+            <span class="stat-label">Total Edits</span>
+        </div>
+        <div class="stat">
+            <span class="stat-value" id="apiCalls">0</span>
+            <span class="stat-label">API Calls</span>
+        </div>
+        <div class="stat">
+            <span class="stat-value" id="cacheHitRate">0%</span>
+            <span class="stat-label">Cache Hit Rate</span>
+        </div>
+    </div>
+    
+    <div id="visualization">
+        <div id="topic-grid"></div>
+    </div>
+    
+    <div id="footer">
+        <p>Data sources: Wikipedia EventStreams & LiftWing Article Topic Model</p>
+        <p><a href="https://github.com/yourname/eventstream-visualize" target="_blank">GitHub Repository</a></p>
+    </div>
+
+    <script>
+        // Configuration
+        const EVENTSTREAM_URL = 'https://stream.wikimedia.org/v2/stream/recentchange';
+        // Use the CORS proxy - make sure to run npm start in the project directory first
+        const LIFTWING_PROXY_URL = 'http://localhost:3001/predict'; 
+        const USER_AGENT = 'eventstream-visualize/1.0 (https://github.com/yourname/eventstream-visualize)';
+
+        // Topic categories from LiftWing taxonomy
+        const TOPIC_CATEGORIES = {
+            'Culture': 'Culture',
+            'Geography': 'Geography',
+            'History_and_Society': 'History_and_Society',
+            'STEM': 'STEM',
+            'Culture.Biography.Biography*': 'Culture',
+            'Culture.Biography.Women': 'Culture',
+            'Culture.Book': 'Culture',
+            'Culture.Entertainment': 'Culture',
+            'Culture.Films': 'Culture',
+            'Culture.Music': 'Culture',
+            'Culture.Radio': 'Culture',
+            'Culture.Software': 'Culture',
+            'Culture.Television': 'Culture',
+            'Culture.Video_games': 'Culture',
+            'Culture.Visual_arts.Visual_arts*': 'Culture',
+            'Culture.Visual_arts.Architecture': 'Culture',
+            'Culture.Visual_arts.Comics_and_Anime': 'Culture',
+            'Culture.Visual_arts.Fashion': 'Culture',
+            'Geography.Regions.Africa': 'Geography',
+            'Geography.Regions.Americas': 'Geography',
+            'Geography.Regions.Asia': 'Geography',
+            'Geography.Regions.Europe': 'Geography',
+            'Geography.Regions.Oceania': 'Geography',
+            'History_and_Society.Business_and_economics': 'History_and_Society',
+            'History_and_Society.Education': 'History_and_Society',
+            'History_and_Society.History': 'History_and_Society',
+            'History_and_Society.Military_and_warfare': 'History_and_Society',
+            'History_and_Society.Politics_and_government': 'History_and_Society',
+            'History_and_Society.Society': 'History_and_Society',
+            'History_and_Society.Transportation': 'History_and_Society',
+            'STEM.Biology': 'STEM',
+            'STEM.Chemistry': 'STEM',
+            'STEM.Computing': 'STEM',
+            'STEM.Earth_and_environment': 'STEM',
+            'STEM.Engineering': 'STEM',
+            'STEM.Libraries_&_Information': 'STEM',
+            'STEM.Mathematics': 'STEM',
+            'STEM.Medicine_&_Health': 'STEM',
+            'STEM.Physics': 'STEM',
+            'STEM.Space': 'STEM',
+            'STEM.Technology': 'STEM',
+            'STEM.STEM*': 'STEM'
+        };
+
+        // Get color for each category
+        const CATEGORY_COLORS = {
+            'Culture': '#e91e63',
+            'Geography': '#009688',
+            'History_and_Society': '#ff9800',
+            'STEM': '#2196f3'
+        };
+
+        // Simple in-memory cache with 5-minute TTL
+        const topicCache = new Map();
+        const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+        const MAX_CACHE_SIZE = 1000;
+
+        // Stats
+        let editsPerMinute = 0;
+        let totalEdits = 0;
+        let apiCalls = 0;
+        let cacheHits = 0;
+        let cacheMisses = 0;
+        let lastMinuteReset = Date.now();
+        let editsInLastMinute = 0;
+
+        // DOM elements
+        const statusEl = document.getElementById('status');
+        const editsPerMinuteEl = document.getElementById('editsPerMinute');
+        const totalEditsEl = document.getElementById('totalEdits');
+        const apiCallsEl = document.getElementById('apiCalls');
+        const cacheHitRateEl = document.getElementById('cacheHitRate');
+        const thresholdEl = document.getElementById('confidenceThreshold');
+        const thresholdValueEl = document.getElementById('thresholdValue');
+        const topicFilterEl = document.getElementById('topicFilter');
+        const clearButtonEl = document.getElementById('clearButton');
+        const topicGridEl = document.getElementById('topic-grid');
+
+        // Update stats display
+        function updateStats() {
+            editsPerMinuteEl.textContent = editsPerMinute;
+            totalEditsEl.textContent = totalEdits;
+            apiCallsEl.textContent = apiCalls;
+            const hitRate = cacheHits + cacheMisses > 0 ? 
+                Math.round((cacheHits / (cacheHits + cacheMisses)) * 100) : 0;
+            cacheHitRateEl.textContent = hitRate + '%';
+        }
+
+        // Update threshold display
+        thresholdEl.addEventListener('input', () => {
+            thresholdValueEl.textContent = thresholdEl.value;
+        });
+
+        // Clear visualization
+        clearButtonEl.addEventListener('click', () => {
+            topicGridEl.innerHTML = '';
+            topicCache.clear();
+            cacheHits = 0;
+            cacheMisses = 0;
+            updateStats();
+        });
+
+        // Get topics for a page title from LiftWing API via proxy
+        async function getTopics(pageTitle) {
+            const now = Date.now();
+            
+            // Check cache
+            const cached = topicCache.get(pageTitle);
+            if (cached && (now - cached.timestamp < CACHE_TTL)) {
+                cacheHits++;
+                updateStats();
+                return cached.data;
+            }
+            
+            cacheMisses++;
+            updateStats();
+            
+            // Call API via proxy
+            try {
+                apiCalls++;
+                updateStats();
+                
+                const response = await fetch(LIFTWING_PROXY_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        page_title: pageTitle,
+                        lang: 'en',
+                        threshold: 0.1
+                    })
+                });
+                
+                if (!response.ok) {
+                    console.error(`API error: ${response.status}`);
+                    const errorText = await response.text();
+                    console.error('Error response:', errorText.substring(0, 200));
+                    return [];
+                }
+                
+                const data = await response.json();
+                
+                // Handle different possible response structures
+                let results = [];
+                if (data.prediction && Array.isArray(data.prediction.results)) {
+                    results = data.prediction.results;
+                } else if (Array.isArray(data.results)) {
+                    results = data.results;
+                } else if (Array.isArray(data)) {
+                    results = data;
+                }
+                
+                // Update cache
+                topicCache.set(pageTitle, { timestamp: now, data: results });
+                
+                // Optional: limit cache size to prevent memory growth
+                if (topicCache.size > MAX_CACHE_SIZE) {
+                    // Remove oldest entry
+                    const oldestKey = Array.from(topicCache.keys()).reduce((a, b) => 
+                        topicCache.get(a).timestamp < topicCache.get(b).timestamp ? a : b
+                    );
+                    topicCache.delete(oldestKey);
+                }
+                
+                return results;
+            } catch (error) {
+                console.error('Topic lookup failed:', error);
+                return []; // Return empty array to avoid breaking visualization
+            }
+        }
+
+        // Get topic category from topic string
+        function getTopicCategory(topicString) {
+            // Exact match
+            if (TOPIC_CATEGORIES[topicString]) {
+                return TOPIC_CATEGORIES[topicString];
+            }
+            // Prefix match: check if topicString starts with any key (ignoring trailing '*')
+            for (const key in TOPIC_CATEGORIES) {
+                const cleanKey = key.replace(/\*$/, '');
+                if (topicString.startsWith(cleanKey)) {
+                    return TOPIC_CATEGORIES[key];
+                }
+            }
+            // Fallback: first component before dot
+            const firstDot = topicString.indexOf('.');
+            if (firstDot !== -1) {
+                const prefix = topicString.substring(0, firstDot);
+                // Map known top-level prefixes
+                if (prefix === 'Culture' || prefix === 'Geography' || 
+                    prefix === 'History_and_Society' || prefix === 'STEM') {
+                    return prefix;
+                }
+            }
+            return 'Unknown';
+        }
+
+        // Get color for topic category
+        function getCategoryColor(category) {
+            return CATEGORY_COLORS[category] || '#9e9e9e';
+        }
+
+        // Create or update topic cell
+        function getOrCreateTopicCell(category) {
+            // Look for existing cell
+            let cell = Array.from(topicGridEl.children).find(
+                el => el.dataset.category === category
+            );
+            
+            if (!cell) {
+                // Create new cell
+                cell = document.createElement('div');
+                cell.className = 'topic-cell';
+                cell.dataset.category = category;
+                
+                const header = document.createElement('div');
+                header.className = 'topic-header';
+                header.textContent = category;
+                header.style.borderBottom = `2px solid ${getCategoryColor(category)}`;
+                header.style.paddingBottom = '5px';
+                header.style.marginBottom = '8px';
+                
+                cell.appendChild(header);
+                topicGridEl.appendChild(cell);
+            }
+            
+            return cell;
+        }
+
+        // Add edit dot to topic cell
+        function addEditToTopic(category) {
+            const cell = getOrCreateTopicCell(category);
+            
+            // Create edit dot
+            const dot = document.createElement('div');
+            dot.className = 'edit-dot recent';
+            
+            // Position randomly within cell
+            const cellRect = cell.getBoundingClientRect();
+            const x = Math.random() * 80 + 10; // 10-90% of width
+            const y = Math.random() * 60 + 20; // 20-80% of height
+            dot.style.left = `${x}%`;
+            dot.style.bottom = `${y}%`;
+            
+            cell.appendChild(dot);
+            
+            // Remove "recent" class after animation ends
+            setTimeout(() => {
+                dot.classList.remove('recent');
+            }, 2000);
+            
+            // Limit dots per cell to prevent overcrowding
+            const dots = cell.querySelectorAll('.edit-dot');
+            if (dots.length > 20) {
+                // Remove oldest dots
+                const excess = dots.length - 20;
+                for (let i = 0; i < excess; i++) {
+                    dots[i].remove();
+                }
+            }
+        }
+
+        // Process a Wikipedia change event
+        async function processChange(change) {
+            totalEdits++;
+            
+            // Filter: only English Wikipedia
+            if (change.server_name !== 'en.wikipedia.org') {
+                return;
+            }
+            
+            // Filter out canary events
+            if (change.meta && change.meta.domain === 'canary') {
+                return;
+            }
+            
+            const title = change.title;
+            const user = change.user || 'unknown';
+            
+            // Get topics
+            const topics = await getTopics(title);
+            
+            // Filter by confidence threshold
+            const minConfidence = parseFloat(thresholdEl.value);
+            const highConfidenceTopics = topics.filter(t => t.score >= minConfidence);
+            
+            // Filter by topic category if selected
+            const selectedFilters = Array.from(topicFilterEl.selectedOptions).map(opt => opt.value);
+            let filteredTopics = highConfidenceTopics;
+            if (selectedFilters.length > 0) {
+                filteredTopics = highConfidenceTopics.filter(topic => 
+                    selectedFilters.includes(getTopicCategory(topic.topic))
+                );
+            }
+            
+            // Add edits to visualization for each topic
+            filteredTopics.forEach(topic => {
+                const category = getTopicCategory(topic.topic);
+                if (category !== 'Unknown') {
+                    addEditToTopic(category);
+                }
+            });
+            
+            // Update edits per minute counter
+            editsInLastMinute++;
+            const now = Date.now();
+            if (now - lastMinuteReset >= 60000) { // 1 minute
+                editsPerMinute = editsInLastMinute;
+                editsInLastMinute = 0;
+                lastMinuteReset = now;
+                updateStats();
+            }
+        }
+
+        // Initialize topic grid with all known categories
+        function initializeTopicGrid() {
+            const categories = [...new Set(Object.values(TOPIC_CATEGORIES))];
+            categories.forEach(category => {
+                getOrCreateTopicCell(category);
+            });
+        }
+
+        // Connect to EventStream
+        const eventSource = new EventSource(EVENTSTREAM_URL);
+
+        eventSource.onopen = () => {
+            statusEl.textContent = 'Connected to Wikipedia EventStream';
+            statusEl.style.background = '#e8f5e9';
+            initializeTopicGrid();
+        };
+
+        eventSource.onerror = (err) => {
+            console.error('EventSource error:', err);
+            statusEl.textContent = 'Error connecting to EventStream';
+            statusEl.style.background = '#ffebee';
+        };
+
+        eventSource.onmessage = (event) => {
+            try {
+                const change = JSON.parse(event.data);
+                processChange(change);
+            } catch (e) {
+                console.error('Failed to parse event:', e);
+            }
+        };
+
+        // Initial stats update
+        updateStats();
+    </script>
+</body>
+</html>
