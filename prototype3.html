@@ -1119,25 +1119,38 @@ function updateSunburst() {
         .sort((a, b) => b.value - a.value));
 
     const arc = d3.arc()
-        .startAngle(d => {
-            const angle = d.x0 || 0;
-            return Math.max(0, Math.min(angle, 2 * Math.PI));
-        })
+        .startAngle(d => Math.max(0, d.x0 || 0))
         .endAngle(d => {
-            let angle = d.x1 || 0;
-            angle = Math.min(angle, 2 * Math.PI);
-            if (angle <= (d.x0 || 0) + 0.0001) angle = (d.x0 || 0) + 0.001;
-            return angle;
+            const endAngle = d.x1 || 0;
+            return Math.max((d.x0 || 0) + 0.001, Math.min(endAngle, 2 * Math.PI));
         })
         .innerRadius(d => d.y0 || 0)
         .outerRadius(d => Math.max(0, (d.y1 || 0) - 1));
 
+    const validArcs = root.descendants().filter(d => d.depth && (d.x1 - d.x0) > 0.001 && d.value > 0);
+
     sunburstG.selectAll('path')
-        .data(root.descendants().filter(d => d.depth && (d.x1 - d.x0) > 0.001 && d.value > 0))
-        .transition()
-        .duration(300)
-        .attr('d', arc)
-        .attr('fill', d => getSunburstColor(d));
+        .data(validArcs, d => d.data.name + d.depth)
+        .join(
+            enter => enter.append('path')
+                .attr('d', arc)
+                .attr('fill', d => getSunburstColor(d))
+                .attr('fill-opacity', 0.85)
+                .attr('stroke', '#0d1117')
+                .attr('stroke-width', 0.5)
+                .style('cursor', 'pointer')
+                .on('mouseover', function(event, d) {
+                    d3.select(this).attr('fill-opacity', 1);
+                    showTooltip(event, d);
+                })
+                .on('mouseout', function() {
+                    d3.select(this).attr('fill-opacity', 0.85);
+                    hideTooltip();
+                }),
+            update => update
+                .attr('d', arc)
+                .attr('fill', d => getSunburstColor(d))
+        );
 }
 
 let tooltip = null;
