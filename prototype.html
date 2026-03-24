@@ -240,24 +240,79 @@
         }
 
         .log-entry {
-            padding: 4px 15px;
+            padding: 2px 15px;
             border-bottom: 1px solid #111;
             display: grid;
-            grid-template-columns: 90px 1fr 180px 220px;
+            grid-template-columns: 80px 1.5fr 3.5fr;
             align-items: center;
-            gap: 10px;
+            gap: 15px;
         }
 
-        .log-time { color: #777; font-family: monospace; }
-        .log-title { font-weight: bold; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .log-user { color: #aaa; }
-        .log-topics { display: flex; gap: 5px; overflow: hidden; }
-        .topic-mini-tag {
-            background: #333;
-            padding: 1px 5px;
-            border-radius: 3px;
+        .log-time { color: #555; font-family: monospace; font-size: 0.9em; }
+        
+        .log-main {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .log-title { 
+            font-weight: bold; 
+            color: #fff; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            font-size: 0.95em;
+        }
+
+        .log-user { 
+            color: #888; 
             font-size: 0.8em;
-            color: #ddd;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .log-topic-viz {
+            display: flex;
+            flex-direction: row;
+            gap: 10px;
+            overflow: hidden;
+            align-items: center;
+        }
+
+        .topic-bar-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .topic-bar-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7em;
+            color: #aaa;
+            white-space: nowrap;
+        }
+
+        .topic-bar-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .topic-bar-bg {
+            height: 4px;
+            background: #222;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .topic-bar-fill {
+            height: 100%;
+            background: #4dabf7;
+            border-radius: 2px;
         }
 
         a { color: #4dabf7; text-decoration: none; }
@@ -502,15 +557,29 @@
             }
         }
 
-        const topicTags = topics.slice(0, 2).map(t => 
-            `<span class="topic-mini-tag">${t.topic.split('.').pop().replace(/\*$/, '')} (${t.score.toFixed(2)})</span>`
-        ).join('');
+        const topicBars = topics.slice(0, 3).map(t => {
+            const name = t.topic.split('.').pop().replace(/\*$/, '').replace(/_/g, ' ');
+            const pct = Math.round(t.score * 100);
+            return `
+                <div class="topic-bar-container">
+                    <div class="topic-bar-header">
+                        <span class="topic-bar-name">${name}</span>
+                        <span class="topic-bar-score">${t.score.toFixed(2)}</span>
+                    </div>
+                    <div class="topic-bar-bg">
+                        <div class="topic-bar-fill" style="width: ${pct}%"></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
 
         entry.innerHTML = `
             <div class="log-time">${timeStr}</div>
-            <div class="log-title"><a href="https://en.wikipedia.org/wiki/${encodeURIComponent(change.title)}" target="_blank">${change.title}</a></div>
-            <div class="log-user">by ${change.user}</div>
-            <div class="log-topics">${topicTags}</div>
+            <div class="log-main">
+                <div class="log-title"><a href="https://en.wikipedia.org/wiki/${encodeURIComponent(change.title)}" target="_blank">${change.title}</a></div>
+                <div class="log-user">by ${change.user}</div>
+            </div>
+            <div class="log-topic-viz">${topicBars}</div>
         `;
 
         logContainer.insertBefore(entry, logContainer.firstChild);
