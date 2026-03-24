@@ -5,7 +5,7 @@ A real-time visualization of Wikipedia edits organized by article topics using W
 ## Overview
 WikiEditTracker connects to the Wikipedia [Recent Changes EventStream](https://stream.wikimedia.org/v2/stream/recentchange) and classifies each edit into one of 64 article topics. It visualizes these edits in real-time using a high-density treemap layout that packs categories edge-to-edge for maximum visibility.
 
-![screenshot](/Users/alih/Documents/ai/eventstream-visualize/screenshot.png)
+![screenshot](creenshot.png)
 
 ### Architecture
 - **Front-end**: HTML5 / JavaScript (EventSource + Fetch)
