@@ -22,7 +22,7 @@ Features:
 - History & Society/STEM are smaller (40%)
 - Dots appear below topic labels in the treemap
 - Immediate rendering on page load
-- Multiple view modes: Dashboard, Treemap, Sunburst, Edit Log, Sparks
+- Multiple view modes: Dashboard, Treemap, Sunburst, Sparks, Edit Log
 
 ```bash
 # Open directly

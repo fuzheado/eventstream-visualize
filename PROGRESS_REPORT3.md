@@ -57,6 +57,20 @@ A single-page application showing three visualizations simultaneously:
 
 ## Issues Resolved
 
+### Edit Log Live Updates
+- **Problem**: Edit Log view only rendered once when switching to it, not updating with new edits
+- **Solution**: Added 1-second interval to refresh the log view when it's active
+
+### Sparks Button Not Working
+- **Problem**: Clicking "Sparks" button showed only raw feed info instead of sparkline graphs
+- **Root Cause**: Button `data-mode="sparks"` didn't match container ID `single-sparklines`
+- **Solution**: Changed button to `data-mode="sparklines"` to match container ID
+
+### Dedicated Sparks View Grid Layout
+- **Problem**: Sparklines showed in a single narrow column instead of tiled grid
+- **Root Cause**: Inner container `#sparklines-grid-single` lacked grid CSS styling
+- **Solution**: Added proper grid CSS to the inner container matching the dashboard sparklines
+
 ### API Mode Detection (New Feature)
 - **Problem**: Need to test if WikiEditTracker.toolforge.org can access LiftWing API directly
 - **Solution**: Added automatic detection that tries direct API first, falls back to proxy if it fails

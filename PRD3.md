@@ -141,8 +141,8 @@ Dark, data-dense interface inspired by terminal dashboards and mission control c
 | Dashboard | All panels visible, optimized layout |
 | Treemap | Full-screen treemap with detailed cells |
 | Sunburst | Full-screen sunburst with zoom |
-| Edit Log | Full-screen scrolling log |
 | Sparks | Full-screen sparklines grid |
+| Edit Log | Full-screen scrolling log |
 
 ### Controls
 
@@ -271,8 +271,10 @@ eventstream-visualize/
 ### Should Have
 - [x] Culture/Geography larger than History/STEM (60/40)
 - [x] Dots appear below labels
-- [x] Multiple view modes work correctly
+- [x] Multiple view modes work correctly (Dashboard, Treemap, Sunburst, Sparks, Edit Log)
 - [x] No SVG arc generation errors
+- [x] Sparks view displays all 68 sparklines in tiled grid
+- [x] Edit Log shows live updates with article links
 
 ### Could Have
 - [ ] Click-to-drill-down in sunburst
