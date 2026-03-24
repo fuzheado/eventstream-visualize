@@ -43,7 +43,8 @@ Then visit: `http://localhost:3000/prototype.html`
 - **Real-time Pulsing**: Edits appear as pulses in their respective topic cells; size/opacity reflects model confidence.
 - **Hierarchical Layout**: Topics are grouped into parent categories (Culture, Geography, History & Society, STEM) with regional sub-categories.
 - **Interactive Controls**: Adjust classification confidence thresholds and dot decay speed on the fly.
-- **Detailed Audit Log**: Real-time scrolling log showing timestamps, article titles, editors, and detected topics.
+- **Detailed Audit Log**: Real-time scrolling log showing timestamps, article titles, and editors, with integrated mini bar-charts for detected topics.
+- **Event Deduplication**: Robust handling of stream reconnections to ensure each edit is only displayed once.
 
 ## Diagnostic Tools
 - **`final_working_test.html`**: A detailed logging tool to verify the EventStream connection and topic classification pipeline.

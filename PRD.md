@@ -44,6 +44,7 @@ To bypass CORS restrictions on the LiftWing API while maintaining a simple deplo
 - **Layout**: High-density treemap with weighted topic boxes and perfectly interlocking geometry.
 - **Edit Indicator**: Scalable pulsing dots; size and opacity determined by model confidence score.
 - **Taxonomy Support**: Full 64-topic hierarchy with nested regional and subject-matter groups.
+- **Audit Log**: Real-time scrolling log with stacked identity info and mini bar-charts for the top 3 detected topics.
 - **Controls**: 
   - **Min Confidence**: Slider to filter out low-score classifications (0.0 to 1.0).
   - **Decay (sec)**: Slider to adjust dot lifetime (1 to 20 seconds).
@@ -59,6 +60,7 @@ To bypass CORS restrictions on the LiftWing API while maintaining a simple deplo
   - 10-second timeout for high-latency API responses.
 
 #### 6.2 Browser Client (`prototype.html`)
+- **Deduplication**: Implementation of a sliding-window buffer (1000 IDs) to discard duplicate events via `meta.id`.
 - **Caching**: In-memory `Map` with 5-minute TTL to reduce API load.
 - **UI Packing**: Flex-based treemap architecture for edge-to-edge visualization.
 - **Namespace Filtering**: Strict Namespace 0 focus.

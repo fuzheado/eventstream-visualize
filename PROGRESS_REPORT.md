@@ -27,9 +27,15 @@ Successfully mapped the full ORES/Articletopic taxonomy.
 
 ### 3. Intelligent Data Pipeline
 - **Namespace Filtering**: Processing only Namespace 0 (Main/Article) edits.
+- **Event Deduplication**: Implemented a unique ID tracking system to prevent duplicate entries caused by stream reconnections or network flutters.
 - **CORS Handling**: Robust local proxy for the LiftWing API.
 - **Client-side Caching**: In-memory cache with TTL to optimize API usage and provide cache hit metrics.
 - **Robust Timing**: Multi-format timestamp parser ensures accurate real-time clock synchronization.
+
+### 4. UI Polishing & Audit Log
+- **Redesigned Log**: Moved to a three-column stacked identity layout with high-resolution mini bar-charts for topic classification.
+- **Label Brighter**: Increased contrast for topic names and headers to ensure high visibility against the dark background.
+- **Zero-Scroll Treemap**: Refined the packing algorithm and removed invalid schema entries (Americas General) to fit the entire taxonomy in one view.
 
 ## Files Added to Repo
 - `prototype.html`: The definitive high-density treemap visualization.
