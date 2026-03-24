@@ -57,6 +57,12 @@ A single-page application showing three visualizations simultaneously:
 
 ## Issues Resolved
 
+### API Mode Detection (New Feature)
+- **Problem**: Need to test if WikiEditTracker.toolforge.org can access LiftWing API directly
+- **Solution**: Added automatic detection that tries direct API first, falls back to proxy if it fails
+- **UI**: Shows "Direct" (green) or "Proxy" (orange) mode indicator in the header
+- **Fallback**: If any direct API call fails during runtime, switches to proxy mode automatically
+
 ### Sunburst Rendering
 - **Problem**: Sunburst didn't render on initial page load
 - **Root Cause**: `updateSunburst()` used `.transition()` which only updated existing paths, not creating new ones
@@ -113,9 +119,10 @@ http://localhost:3000/prototype3.html
 
 ## Next Steps Ideas
 
-1. Add zoom/click-to-drill-down to sunburst
-2. Persist view preference in localStorage
-3. Add keyboard shortcuts for view switching
-4. Export/copy functionality for data
-5. Add filtering by category
-6. Add time range selector
+1. **Test deployed API mode** - Verify that WikiEditTracker.toolforge.org shows "Direct" mode (no proxy needed)
+2. Add zoom/click-to-drill-down to sunburst
+3. Persist view preference in localStorage
+4. Add keyboard shortcuts for view switching
+5. Export/copy functionality for data
+6. Add filtering by category
+7. Add time range selector

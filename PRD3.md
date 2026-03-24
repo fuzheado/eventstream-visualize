@@ -129,6 +129,11 @@ Dark, data-dense interface inspired by terminal dashboards and mission control c
    - Shows article title (linked to Wikipedia)
    - Shows top 2 detected topics
 
+7. **API Mode Detection**
+   - On page load, attempts direct access to LiftWing API
+   - Falls back to local proxy if direct access fails
+   - UI indicator shows "Direct" (green) or "Proxy" (orange)
+
 ### View Modes
 
 | Mode | Description |
@@ -220,6 +225,13 @@ API Proxy   EventSource
 - Node.js/Express server on port 3001
 - Forwards requests to `api.wikimedia.org`
 - Handles CORS preflight
+- Only used as fallback when direct API access fails
+
+### API Mode Detection
+- On page load, attempts direct POST to LiftWing API endpoint
+- Uses 3-second timeout to detect CORS/connectivity issues
+- Automatic fallback to proxy if direct fails
+- Mode indicator displayed in header UI
 
 ### Performance Considerations
 - Sparkline updates throttled to 2-second intervals

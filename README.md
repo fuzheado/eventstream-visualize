@@ -52,12 +52,15 @@ Original treemap visualization with high-density topic layout.
 npm install
 ```
 
-### 3. Start the CORS Proxy
-The LiftWing API does not support direct browser-based requests. You must run the local proxy to handle CORS and preflight requests:
+### 3. Start the CORS Proxy (Optional for Deployment)
+The LiftWing API may not support direct browser-based requests from all origins. By default, a local proxy handles CORS. However, when deployed to Wikimedia Cloud (WikiEditTracker.toolforge.org), direct API access may work:
+
 ```bash
 npm start
 ```
 The proxy will be available at `http://localhost:3001`.
+
+**API Mode Indicator**: The dashboard displays "Direct" (green) or "Proxy" (orange) in the header to show which method is being used.
 
 ### 4. Run the Visualization
 Serve the files using a local web server (required for EventSource compatibility):

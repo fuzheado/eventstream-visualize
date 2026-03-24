@@ -70,6 +70,36 @@
         .stat-value { font-size: 1em; font-weight: 700; color: #fff; }
         .stat-label { font-size: 0.65em; color: var(--text-dim); text-transform: uppercase; }
 
+        .api-mode {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.65em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .api-mode.direct {
+            background: rgba(0, 150, 136, 0.2);
+            color: #009688;
+            border: 1px solid #009688;
+        }
+
+        .api-mode.proxy {
+            background: rgba(255, 152, 0, 0.2);
+            color: #ff9800;
+            border: 1px solid #ff9800;
+        }
+
+        .api-mode.unknown {
+            background: rgba(139, 148, 158, 0.2);
+            color: var(--text-dim);
+            border: 1px solid var(--border);
+        }
+
         .mode-toggle {
             display: flex;
             background: var(--bg);
@@ -587,6 +617,7 @@
             <div class="stat-item"><span class="stat-value" id="stat-api">0</span><span class="stat-label">api</span></div>
             <div class="stat-item"><span class="stat-value" id="stat-rate">0</span><span class="stat-label">/min</span></div>
             <div class="stat-item"><span class="stat-value" id="stat-cache">--%</span><span class="stat-label">cache</span></div>
+            <div class="api-mode unknown" id="api-mode-indicator">Checking...</div>
         </div>
     </div>
 
@@ -689,8 +720,12 @@
 <script>
 const EVENTSTREAM_URL = 'https://stream.wikimedia.org/v2/stream/recentchange';
 const PROXY_URL = 'http://localhost:3001/predict';
+const LIFTWING_DIRECT_URL = 'https://api.wikimedia.org/service/lw/inference/v1/models/outlink-topic-model:predict';
 const CACHE_TTL = 300000;
 const MAX_PROCESSED_IDS = 1000;
+
+let apiMode = 'unknown';
+let directApiFailed = false;
 
 const CATEGORY_COLORS = {
     'Culture': '#e91e63',
@@ -891,12 +926,39 @@ async function getTopics(title) {
     stats.misses++;
     stats.api++;
 
-    try {
-        const res = await fetch(PROXY_URL, {
+    const makeRequest = async (url) => {
+        return fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'User-Agent': 'eventstream-visualize/1.0'
+            },
             body: JSON.stringify({ page_title: title, lang: 'en', threshold: 0.1 })
         });
+    };
+
+    if (!directApiFailed && apiMode !== 'proxy') {
+        try {
+            const res = await makeRequest(LIFTWING_DIRECT_URL);
+            if (res.ok) {
+                const data = await res.json();
+                const results = data.prediction?.results || data.results || [];
+                topicCache.set(title, { ts: now, data: results });
+                if (apiMode !== 'direct') {
+                    apiMode = 'direct';
+                    updateApiModeIndicator();
+                }
+                return results;
+            }
+        } catch (e) {
+            directApiFailed = true;
+            apiMode = 'proxy';
+            updateApiModeIndicator();
+        }
+    }
+
+    try {
+        const res = await makeRequest(PROXY_URL);
         if (!res.ok) return [];
         const data = await res.json();
         const results = data.prediction?.results || data.results || [];
@@ -905,6 +967,14 @@ async function getTopics(title) {
     } catch (e) {
         return [];
     }
+}
+
+function updateApiModeIndicator() {
+    const indicator = document.getElementById('api-mode-indicator');
+    if (!indicator) return;
+    
+    indicator.className = `api-mode ${apiMode}`;
+    indicator.textContent = apiMode === 'direct' ? 'Direct' : apiMode === 'proxy' ? 'Proxy' : 'Checking...';
 }
 
 // ==================== STATS ====================
@@ -1494,9 +1564,44 @@ window.addEventListener('resize', () => {
 });
 
 // ==================== INIT ====================
+async function testApiMode() {
+    apiMode = 'unknown';
+    directApiFailed = false;
+    
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        
+        const res = await fetch(LIFTWING_DIRECT_URL, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'User-Agent': 'eventstream-visualize/1.0'
+            },
+            body: JSON.stringify({ page_title: 'Test', lang: 'en', threshold: 0.1 }),
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (res.ok || res.status === 400) {
+            apiMode = 'direct';
+        } else {
+            apiMode = 'proxy';
+            directApiFailed = true;
+        }
+    } catch (e) {
+        apiMode = 'proxy';
+        directApiFailed = true;
+    }
+    
+    updateApiModeIndicator();
+}
+
 initMiniTreemapUI();
 initFullTreemapUI();
 initSparklinesUI();
+testApiMode();
 
 // Initialize sunburst after layout is computed
 function initSunburstOnLayout() {
