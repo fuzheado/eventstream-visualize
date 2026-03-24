@@ -360,6 +360,16 @@
             flex: 1;
         }
 
+        #sparklines-grid-single {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 10px;
+            padding: 15px;
+            overflow-y: auto;
+            flex: 1;
+            align-content: start;
+        }
+
         .sparkline-mini {
             background: var(--bg);
             border: 1px solid var(--border);
@@ -495,8 +505,8 @@
             background: rgba(255,255,255,0.03);
         }
 
-        #single-sparklines { display: none; padding: 15px; overflow-y: auto; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; flex: 1; align-content: start; }
-        #single-sparklines.active { display: grid; }
+        #single-sparklines { display: none; flex: 1; overflow: hidden; }
+        #single-sparklines.active { display: flex; }
 
         .category-block {
             background: var(--bg);
