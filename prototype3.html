@@ -220,11 +220,11 @@
             flex: 1 1 50px;
             min-width: 45px;
             min-height: 20px;
-            max-height: 25px;
+            max-height: 50px;
             position: relative;
             display: flex;
-            align-items: center;
-            justify-content: center;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         .topic-chip-name {
@@ -237,6 +237,13 @@
             text-overflow: ellipsis;
             white-space: nowrap;
             max-width: 100%;
+            flex-shrink: 0;
+        }
+
+        .topic-chip-dots {
+            flex: 1;
+            position: relative;
+            min-height: 0;
         }
 
         /* Sunburst Panel - Top Right */
@@ -751,7 +758,10 @@ function initMiniTreemapUI() {
             const chip = document.createElement('div');
             chip.className = 'topic-chip';
             chip.id = `mini-cell-${topicId}`;
-            chip.innerHTML = `<span class="topic-chip-name">${topicId.replace(/_/g, ' ')}</span>`;
+            chip.innerHTML = `
+                <span class="topic-chip-name">${topicId.replace(/_/g, ' ')}</span>
+                <div class="topic-chip-dots"></div>
+            `;
             grid.appendChild(chip);
             MINI_TOPIC_TO_CELL_ID[topicId] = chip.id;
         });
@@ -919,23 +929,16 @@ function updateRateStats() {
 function addDotToCell(cell, category, confidence) {
     if (!cell) return;
 
+    const dotsContainer = cell.querySelector('.topic-chip-dots') || cell;
     const dot = document.createElement('div');
     dot.className = 'dot';
     dot.style.backgroundColor = CATEGORY_COLORS[category] || '#888';
     dot.style.opacity = Math.max(0.3, confidence);
     dot.style.width = dot.style.height = (3 + confidence * 6) + 'px';
+    dot.style.left = (Math.random() * 90 + 5) + '%';
+    dot.style.top = (Math.random() * 90 + 5) + '%';
     
-    const corners = [
-        { left: '5%', top: '5%' },
-        { left: '85%', top: '5%' },
-        { left: '5%', top: '75%' },
-        { left: '85%', top: '75%' }
-    ];
-    const pos = corners[Math.floor(Math.random() * corners.length)];
-    dot.style.left = pos.left;
-    dot.style.top = pos.top;
-    
-    cell.appendChild(dot);
+    dotsContainer.appendChild(dot);
     
     const decayTime = parseInt(decaySlider.value) * 1000;
     setTimeout(() => {
