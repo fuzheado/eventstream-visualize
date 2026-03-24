@@ -1013,8 +1013,7 @@ function initSunburst() {
     sunburstRoot = buildHierarchyData();
     
     const partition = d3.partition()
-        .size([2 * Math.PI, sunburstRadius * 0.85])
-        .padding(0.005);
+        .size([2 * Math.PI, sunburstRadius * 0.85]);
     
     const root = partition(d3.hierarchy(sunburstRoot)
         .sum(d => d.value || 0)
@@ -1037,7 +1036,7 @@ function initSunburst() {
     sunburstG = sunburstSvg.append('g');
 
     sunburstG.selectAll('path')
-        .data(root.descendants().filter(d => d.depth && (d.x1 - d.x0) > 0.001))
+        .data(root.descendants().filter(d => d.depth && (d.x1 - d.x0) > 0.001 && d.value > 0))
         .join('path')
         .attr('d', arc)
         .attr('fill', d => getSunburstColor(d))
@@ -1113,8 +1112,7 @@ function updateSunburst() {
     sunburstRoot = buildHierarchyData();
     
     const partition = d3.partition()
-        .size([2 * Math.PI, sunburstRadius * 0.85])
-        .padding(0.005);
+        .size([2 * Math.PI, sunburstRadius * 0.85]);
     
     const root = partition(d3.hierarchy(sunburstRoot)
         .sum(d => d.value || 0)
@@ -1135,7 +1133,7 @@ function updateSunburst() {
         .outerRadius(d => Math.max(0, (d.y1 || 0) - 1));
 
     sunburstG.selectAll('path')
-        .data(root.descendants().filter(d => d.depth && (d.x1 - d.x0) > 0.001))
+        .data(root.descendants().filter(d => d.depth && (d.x1 - d.x0) > 0.001 && d.value > 0))
         .transition()
         .duration(300)
         .attr('d', arc)
@@ -1465,10 +1463,16 @@ initMiniTreemapUI();
 initFullTreemapUI();
 initSparklinesUI();
 
-// Initialize sunburst on dashboard
-setTimeout(() => {
-    initSunburst();
-}, 100);
+// Initialize sunburst after layout is computed
+function initSunburstOnLayout() {
+    const container = document.getElementById('sunburst-svg')?.parentElement;
+    if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+        initSunburst();
+    } else {
+        requestAnimationFrame(initSunburstOnLayout);
+    }
+}
+requestAnimationFrame(initSunburstOnLayout);
 </script>
 </body>
 </html>
