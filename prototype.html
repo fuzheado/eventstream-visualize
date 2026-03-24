@@ -361,6 +361,8 @@
     // State
     let stats = { total: 0, ns0: 0, api: 0, hits: 0, misses: 0 };
     const topicCache = new Map();
+    const processedIds = new Set(); // To prevent duplicate event processing
+    const MAX_PROCESSED_IDS = 1000;
     const CACHE_TTL = 300000; // 5 mins
 
     // UI Elements
@@ -550,6 +552,18 @@
     
     source.onmessage = async (e) => {
         const change = JSON.parse(e.data);
+        
+        // Deduplicate based on meta.id
+        const eventId = change.meta?.id;
+        if (eventId) {
+            if (processedIds.has(eventId)) return;
+            processedIds.add(eventId);
+            if (processedIds.size > MAX_PROCESSED_IDS) {
+                const firstId = processedIds.values().next().value;
+                processedIds.delete(firstId);
+            }
+        }
+
         stats.total++;
         
         if (change.server_name === 'en.wikipedia.org' && change.namespace === 0 && !change.meta.domain?.includes('canary')) {
@@ -579,6 +593,7 @@
     document.getElementById('clear-btn').onclick = () => {
         logContainer.innerHTML = '';
         topicCache.clear();
+        processedIds.clear();
         stats = { total: 0, ns0: 0, api: 0, hits: 0, misses: 0 };
         updateStats();
     };
