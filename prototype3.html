@@ -1,0 +1,1451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WikiEditTracker 3.0 - Unified Dashboard</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --culture: #e91e63;
+            --geography: #009688;
+            --history: #ff9800;
+            --stem: #2196f3;
+            --bg: #0d1117;
+            --card: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-dim: #8b949e;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Compact Header */
+        header {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            padding: 8px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            gap: 20px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .app-title {
+            font-size: 1.1em;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--culture), var(--stem));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stats-row {
+            display: flex;
+            gap: 15px;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+        }
+        .stat-value { font-size: 1em; font-weight: 700; color: #fff; }
+        .stat-label { font-size: 0.65em; color: var(--text-dim); text-transform: uppercase; }
+
+        .mode-toggle {
+            display: flex;
+            background: var(--bg);
+            border-radius: 6px;
+            padding: 3px;
+            gap: 3px;
+        }
+
+        .mode-btn {
+            padding: 5px 12px;
+            border: none;
+            background: transparent;
+            color: var(--text-dim);
+            font-size: 0.75em;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .mode-btn:hover { color: var(--text); }
+        .mode-btn.active { background: var(--stem); color: #fff; }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .control-label {
+            font-size: 0.7em;
+            color: var(--text-dim);
+        }
+
+        input[type="range"] {
+            width: 70px;
+            height: 3px;
+            -webkit-appearance: none;
+            background: var(--border);
+            border-radius: 2px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            background: var(--stem);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        /* Main Dashboard Layout */
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1.2fr;
+            grid-template-rows: 1fr 140px;
+            gap: 3px;
+            padding: 3px;
+            background: #000;
+            overflow: hidden;
+        }
+
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .panel-header {
+            padding: 6px 10px;
+            font-size: 0.7em;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Treemap Panel - Left Column */
+        #panel-treemap {
+            grid-row: 1 / 3;
+            display: grid;
+            grid-template-rows: auto 1fr;
+        }
+
+        .treemap-inner {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 2px;
+            padding: 2px;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .cat-mini {
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .cat-mini.culture { border-top: 2px solid var(--culture); }
+        .cat-mini.geography { border-top: 2px solid var(--geography); }
+        .cat-mini.history { border-top: 2px solid var(--history); }
+        .cat-mini.stem { border-top: 2px solid var(--stem); }
+
+        .cat-mini-header {
+            font-size: 0.6em;
+            font-weight: 900;
+            color: var(--text-dim);
+            padding: 3px 6px;
+            background: rgba(0,0,0,0.4);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .cat-mini-grid {
+            flex: 1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1px;
+            padding: 1px;
+            overflow: hidden;
+        }
+
+        .topic-chip {
+            background: #1a1a1a;
+            border: 1px solid #252525;
+            flex: 1 1 50px;
+            min-width: 45px;
+            min-height: 20px;
+            max-height: 25px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .topic-chip-name {
+            font-size: 0.5em;
+            color: var(--text-dim);
+            text-transform: capitalize;
+            text-align: center;
+            padding: 1px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 100%;
+        }
+
+        /* Sunburst Panel - Top Right */
+        #panel-sunburst .panel-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #sunburst-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Stream Graph Panel - Middle Right */
+        #panel-streamgraph {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #streamgraph-svg {
+            flex: 1;
+            width: 100%;
+        }
+
+        .stream-legend {
+            display: flex;
+            gap: 12px;
+            padding: 4px 10px;
+            background: rgba(0,0,0,0.3);
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.6em;
+            color: var(--text-dim);
+        }
+
+        .legend-color {
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+        }
+
+        .time-selector {
+            display: flex;
+            gap: 5px;
+            padding: 4px 10px;
+            background: rgba(0,0,0,0.3);
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .time-btn {
+            padding: 3px 8px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-dim);
+            font-size: 0.65em;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .time-btn:hover { border-color: var(--stem); color: var(--text); }
+        .time-btn.active { background: var(--stem); border-color: var(--stem); color: #fff; }
+
+        /* Sparklines Panel - Bottom */
+        #panel-sparklines {
+            grid-column: 2 / 4;
+        }
+
+        #sparklines-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 4px;
+            padding: 4px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .sparkline-mini {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 4px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sparkline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2px;
+        }
+
+        .sparkline-title {
+            font-size: 0.55em;
+            color: var(--text-dim);
+            text-transform: capitalize;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .sparkline-value {
+            font-size: 0.6em;
+            font-weight: 700;
+            color: var(--stem);
+        }
+
+        .sparkline-canvas {
+            width: 100%;
+            height: 20px;
+            display: block;
+        }
+
+        /* Dot animation for treemap */
+        .dot {
+            position: absolute;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 5;
+            pointer-events: none;
+            animation: pulse 0.3s ease-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
+        }
+
+        /* Log Panel */
+        #log-container {
+            height: 80px;
+            background: var(--card);
+            border-top: 1px solid var(--border);
+            overflow-y: auto;
+            font-size: 0.75em;
+            flex-shrink: 0;
+        }
+
+        .log-entry {
+            padding: 3px 10px;
+            border-bottom: 1px solid var(--border);
+            display: grid;
+            grid-template-columns: 70px 1.5fr 2fr;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .log-time { color: var(--text-dim); font-family: monospace; font-size: 0.85em; }
+        .log-title { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .log-topics { display: flex; gap: 5px; overflow: hidden; }
+
+        .log-topic-badge {
+            background: rgba(33, 150, 243, 0.2);
+            color: var(--stem);
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 0.7em;
+        }
+
+        a { color: var(--stem); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+        /* Single View Mode */
+        .single-view-container {
+            display: none;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .single-view-container.active { display: flex; flex-direction: column; }
+        .dashboard-container.hidden { display: none; }
+
+        #single-treemap { display: none; grid-template-columns: 1.6fr 1.6fr 1fr; grid-template-rows: 1fr 1fr; gap: 3px; padding: 3px; background: #000; flex: 1; }
+        #single-treemap.active { display: grid; }
+
+        #single-sunburst { display: none; align-items: center; justify-content: center; flex: 1; }
+        #single-sunburst.active { display: flex; }
+
+        #single-streamgraph { display: none; padding: 15px; flex: 1; flex-direction: column; }
+        #single-streamgraph.active { display: flex; }
+
+        #single-sparklines { display: none; padding: 15px; overflow-y: auto; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; flex: 1; }
+        #single-sparklines.active { display: grid; }
+
+        .category-block {
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .category-block.culture { grid-row: 1/3; grid-column: 1; border-top: 3px solid var(--culture); }
+        .category-block.geography { grid-row: 1/3; grid-column: 2; border-top: 3px solid var(--geography); }
+        .category-block.history { grid-row: 1; grid-column: 3; border-top: 3px solid var(--history); }
+        .category-block.stem { grid-row: 2; grid-column: 3; border-top: 3px solid var(--stem); }
+
+        .category-header {
+            padding: 6px;
+            text-align: center;
+            font-weight: 900;
+            background: #111;
+            font-size: 0.75em;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+
+        .topic-grid {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            padding: 0;
+            gap: 2px;
+            overflow: hidden;
+        }
+
+        .topic-group {
+            background: #0a0a0a;
+            flex: 1 1 auto;
+            min-width: 120px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #1a1a1a;
+        }
+
+        .topic-group[data-group="Media"],
+        .topic-group[data-group="Africa"],
+        .topic-group[data-group="Asia"],
+        .topic-group[data-group="STEM_Group"],
+        .topic-group[data-group="Misc_Culture"],
+        .topic-group[data-group="Europe"] {
+            flex: 2 1 240px;
+        }
+
+        .group-header {
+            font-size: 0.6em;
+            font-weight: 800;
+            color: var(--text-dim);
+            padding: 3px 6px;
+            text-transform: uppercase;
+            background: #0f0f0f;
+        }
+
+        .group-subs {
+            display: flex;
+            flex-wrap: wrap;
+            flex: 1;
+            gap: 1px;
+        }
+
+        .topic-cell {
+            background: #141414;
+            flex: 1 1 60px;
+            min-height: 28px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            border: 1px solid #1a1a1a;
+            transition: background 0.2s;
+        }
+
+        .topic-cell:hover { background: #1f1f1f; }
+        .topic-cell.is-generic { background: #0e0e0e; }
+
+        .topic-name {
+            color: var(--text-dim);
+            font-size: 0.6em;
+            padding: 2px 4px;
+            pointer-events: none;
+            text-transform: capitalize;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Panel labels */
+        .panel-label {
+            position: absolute;
+            top: 8px;
+            left: 10px;
+            font-size: 0.65em;
+            font-weight: 700;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            background: var(--card);
+            padding: 2px 6px;
+            border-radius: 3px;
+            border: 1px solid var(--border);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-left">
+        <div class="app-title">WikiEditTracker 3.0</div>
+        <div class="stats-row">
+            <div class="stat-item"><span class="stat-value" id="stat-total">0</span><span class="stat-label">events</span></div>
+            <div class="stat-item"><span class="stat-value" id="stat-ns0">0</span><span class="stat-label">articles</span></div>
+            <div class="stat-item"><span class="stat-value" id="stat-api">0</span><span class="stat-label">api</span></div>
+            <div class="stat-item"><span class="stat-value" id="stat-rate">0</span><span class="stat-label">/min</span></div>
+            <div class="stat-item"><span class="stat-value" id="stat-cache">--%</span><span class="stat-label">cache</span></div>
+        </div>
+    </div>
+
+    <div class="mode-toggle">
+        <button class="mode-btn active" data-mode="dashboard">Dashboard</button>
+        <button class="mode-btn" data-mode="treemap">Treemap</button>
+        <button class="mode-btn" data-mode="sunburst">Sunburst</button>
+        <button class="mode-btn" data-mode="stream">Stream</button>
+        <button class="mode-btn" data-mode="sparks">Sparks</button>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <span class="control-label">Conf:</span>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.05" value="0.15">
+            <span class="control-label" id="confidence-value">0.15</span>
+        </div>
+        <div class="control-group">
+            <span class="control-label">Decay:</span>
+            <input type="range" id="decay-slider" min="1" max="20" step="1" value="5">
+            <span class="control-label" id="decay-value">5s</span>
+        </div>
+    </div>
+</header>
+
+<!-- Dashboard Mode -->
+<main class="dashboard-container" id="dashboard">
+    <!-- Treemap Panel - Left Column, Full Height -->
+    <div class="panel" id="panel-treemap">
+        <div class="panel-header">Topic Activity</div>
+        <div class="treemap-inner">
+            <div class="cat-mini culture">
+                <div class="cat-mini-header">Culture</div>
+                <div class="cat-mini-grid" id="mini-Culture"></div>
+            </div>
+            <div class="cat-mini geography">
+                <div class="cat-mini-header">Geography</div>
+                <div class="cat-mini-grid" id="mini-Geography"></div>
+            </div>
+            <div class="cat-mini history">
+                <div class="cat-mini-header">History & Society</div>
+                <div class="cat-mini-grid" id="mini-History_and_Society"></div>
+            </div>
+            <div class="cat-mini stem">
+                <div class="cat-mini-header">STEM</div>
+                <div class="cat-mini-grid" id="mini-STEM"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sunburst Panel - Top Right -->
+    <div class="panel" id="panel-sunburst">
+        <div class="panel-label">Sunburst</div>
+        <div class="panel-content">
+            <svg id="sunburst-svg"></svg>
+        </div>
+    </div>
+
+    <!-- Stream Graph Panel - Middle Right -->
+    <div class="panel" id="panel-streamgraph">
+        <div class="panel-label">Activity Over Time</div>
+        <svg id="streamgraph-svg"></svg>
+        <div class="time-selector">
+            <button class="time-btn active" data-minutes="5">5m</button>
+            <button class="time-btn" data-minutes="15">15m</button>
+            <button class="time-btn" data-minutes="30">30m</button>
+        </div>
+        <div class="stream-legend">
+            <div class="legend-item"><div class="legend-color" style="background: var(--culture)"></div><span>Culture</span></div>
+            <div class="legend-item"><div class="legend-color" style="background: var(--geography)"></div><span>Geography</span></div>
+            <div class="legend-item"><div class="legend-color" style="background: var(--history)"></div><span>History</span></div>
+            <div class="legend-item"><div class="legend-color" style="background: var(--stem)"></div><span>STEM</span></div>
+        </div>
+    </div>
+
+    <!-- Sparklines Panel - Bottom Row -->
+    <div class="panel" id="panel-sparklines">
+        <div class="panel-label">Topic Trends</div>
+        <div id="sparklines-grid"></div>
+    </div>
+</main>
+
+<!-- Single View Mode Containers -->
+<div class="single-view-container" id="single-treemap">
+    <div class="category-block culture">
+        <div class="category-header">CULTURE</div>
+        <div class="topic-grid" id="grid-Culture"></div>
+    </div>
+    <div class="category-block geography">
+        <div class="category-header">GEOGRAPHY</div>
+        <div class="topic-grid" id="grid-Geography"></div>
+    </div>
+    <div class="category-block history">
+        <div class="category-header">HISTORY & SOCIETY</div>
+        <div class="topic-grid" id="grid-History_and_Society"></div>
+    </div>
+    <div class="category-block stem">
+        <div class="category-header">STEM</div>
+        <div class="topic-grid" id="grid-STEM"></div>
+    </div>
+</div>
+
+<div class="single-view-container" id="single-sunburst">
+    <svg id="sunburst-svg-single"></svg>
+</div>
+
+<div class="single-view-container" id="single-streamgraph">
+    <svg id="streamgraph-svg-single"></svg>
+    <div class="time-selector">
+        <button class="time-btn active" data-minutes="5">5 min</button>
+        <button class="time-btn" data-minutes="15">15 min</button>
+        <button class="time-btn" data-minutes="30">30 min</button>
+        <button class="time-btn" data-minutes="60">60 min</button>
+    </div>
+</div>
+
+<div class="single-view-container" id="single-sparklines">
+    <div id="sparklines-grid-single"></div>
+</div>
+
+<div id="log-container"></div>
+
+<script>
+const EVENTSTREAM_URL = 'https://stream.wikimedia.org/v2/stream/recentchange';
+const PROXY_URL = 'http://localhost:3001/predict';
+const CACHE_TTL = 300000;
+const MAX_PROCESSED_IDS = 1000;
+
+const CATEGORY_COLORS = {
+    'Culture': '#e91e63',
+    'Geography': '#009688',
+    'History_and_Society': '#ff9800',
+    'STEM': '#2196f3'
+};
+
+const TAXONOMY_TREE = {
+    'Culture': [
+        { id: 'Biography', name: 'Biography', subs: ['Women'] },
+        { id: 'Media', name: 'Media', subs: ['Books', 'Entertainment', 'Films', 'Music', 'Radio', 'Software', 'Television', 'Video_games'] },
+        { id: 'Visual_arts', name: 'Visual Arts', subs: ['Architecture', 'Comics_and_Anime', 'Fashion'] },
+        { id: 'Misc_Culture', name: 'Culture (Other)', subs: ['Food_and_drink', 'Internet_culture', 'Linguistics', 'Literature', 'Performing_arts', 'Philosophy_and_religion', 'Sports'] }
+    ],
+    'Geography': [
+        { id: 'Africa', name: 'Africa', subs: ['Central_Africa', 'Eastern_Africa', 'Northern_Africa', 'Southern_Africa', 'Western_Africa'] },
+        { id: 'Americas', name: 'Americas', subs: ['Central_America', 'North_America', 'South_America'] },
+        { id: 'Asia', name: 'Asia', subs: ['Central_Asia', 'East_Asia', 'North_Asia', 'South_Asia', 'Southeast_Asia', 'West_Asia'] },
+        { id: 'Europe', name: 'Europe', subs: ['Eastern_Europe', 'Northern_Europe', 'Southern_Europe', 'Western_Europe'] },
+        { id: 'Other_Regions', name: 'Other', subs: ['Oceania', 'Geographical'] }
+    ],
+    'History_and_Society': [
+        { id: 'Society_Group', name: 'History & Society', subs: ['Business_and_economics', 'Education', 'History', 'Military_and_warfare', 'Politics_and_government', 'Society', 'Transportation'] }
+    ],
+    'STEM': [
+        { id: 'STEM_Group', name: 'STEM', subs: ['Biology', 'Chemistry', 'Computing', 'Earth_and_environment', 'Engineering', 'Libraries_&_Information', 'Mathematics', 'Medicine_&_Health', 'Physics', 'Space', 'Technology'] }
+    ]
+};
+
+let stats = { total: 0, ns0: 0, api: 0, hits: 0, misses: 0 };
+const topicCache = new Map();
+const processedIds = new Set();
+let topicCounts = {};
+let editHistory = [];
+const MAX_HISTORY = 2000;
+let currentMode = 'dashboard';
+let currentSingleView = 'treemap';
+let streamGraphMinutes = 5;
+let sparklineData = {};
+let TOPIC_TO_CELL_ID = {};
+
+const logContainer = document.getElementById('log-container');
+const confidenceSlider = document.getElementById('confidence-slider');
+const confidenceValue = document.getElementById('confidence-value');
+const decaySlider = document.getElementById('decay-slider');
+const decayValue = document.getElementById('decay-value');
+
+// ==================== MINI TREEMAP FOR DASHBOARD ====================
+function initMiniTreemapUI() {
+    Object.keys(TAXONOMY_TREE).forEach(cat => {
+        const grid = document.getElementById(`mini-${cat}`);
+        if (!grid) return;
+        grid.innerHTML = '';
+        
+        const allTopics = [];
+        TAXONOMY_TREE[cat].forEach(group => {
+            allTopics.push(group.id);
+            group.subs.forEach(sub => allTopics.push(sub));
+        });
+
+        allTopics.forEach(topicId => {
+            const chip = document.createElement('div');
+            chip.className = 'topic-chip';
+            chip.id = `mini-cell-${topicId}`;
+            chip.innerHTML = `<span class="topic-chip-name">${topicId.replace(/_/g, ' ')}</span>`;
+            grid.appendChild(chip);
+            TOPIC_TO_CELL_ID[topicId] = chip.id;
+        });
+    });
+}
+
+// ==================== FULL TREEMAP FOR SINGLE VIEW ====================
+function initFullTreemapUI() {
+    Object.keys(TAXONOMY_TREE).forEach(cat => {
+        const grid = document.getElementById(`grid-${cat}`);
+        if (!grid) return;
+        
+        TAXONOMY_TREE[cat].forEach(group => {
+            const groupEl = document.createElement('div');
+            groupEl.className = 'topic-group';
+            groupEl.setAttribute('data-group', group.id);
+            groupEl.innerHTML = `<div class="group-header"><span>${group.name}</span></div><div class="group-subs" id="subs-${group.id}"></div>`;
+            grid.appendChild(groupEl);
+            
+            const subsContainer = groupEl.querySelector(`#subs-${group.id}`);
+            
+            if (group.id !== 'Americas') {
+                const genericCell = document.createElement('div');
+                genericCell.className = 'topic-cell is-generic';
+                genericCell.id = `cell-${cat}-${group.id}-generic`;
+                genericCell.innerHTML = `<div class="topic-name">(General)</div>`;
+                subsContainer.appendChild(genericCell);
+                TOPIC_TO_CELL_ID[group.id] = genericCell.id;
+            }
+
+            group.subs.forEach(sub => {
+                const cell = document.createElement('div');
+                cell.className = 'topic-cell';
+                cell.id = `cell-${cat}-${sub}`;
+                cell.innerHTML = `<div class="topic-name">${sub.replace(/_/g, ' ')}</div>`;
+                subsContainer.appendChild(cell);
+                TOPIC_TO_CELL_ID[sub] = cell.id;
+            });
+        });
+    });
+}
+
+// ==================== SPARKLINES ====================
+function initSparklinesUI() {
+    const container = document.getElementById('sparklines-grid');
+    const containerSingle = document.getElementById('sparklines-grid-single');
+    
+    const allTopics = [];
+    Object.keys(TAXONOMY_TREE).forEach(cat => {
+        TAXONOMY_TREE[cat].forEach(group => {
+            allTopics.push({ id: group.id, name: group.name, cat });
+            group.subs.forEach(sub => {
+                allTopics.push({ id: sub, name: sub.replace(/_/g, ' '), cat });
+            });
+        });
+    });
+
+    const createCard = (topic) => {
+        const card = document.createElement('div');
+        card.className = 'sparkline-mini';
+        card.id = `sparkline-${topic.id}`;
+        card.innerHTML = `
+            <div class="sparkline-header">
+                <span class="sparkline-title">${topic.name}</span>
+                <span class="sparkline-value" id="sparkval-${topic.id}">0</span>
+            </div>
+            <canvas class="sparkline-canvas" id="sparkcanvas-${topic.id}" width="80" height="20"></canvas>
+        `;
+        return card;
+    };
+
+    allTopics.forEach(topic => {
+        const card = createCard(topic);
+        container.appendChild(card);
+        
+        const cardSingle = createCard(topic);
+        containerSingle.appendChild(cardSingle);
+        
+        sparklineData[topic.id] = new Array(30).fill(0);
+    });
+}
+
+// ==================== TOPIC MAPPING ====================
+function mapTopicToCell(topicString) {
+    const parts = topicString.split('.').map(p => p.replace(/\*$/, ''));
+    const cat = parts[0];
+    
+    for (let i = parts.length - 1; i >= 1; i--) {
+        const part = parts[i];
+        const cleanPart = part === 'STEM' ? 'STEM_Group' : part;
+        if (TOPIC_TO_CELL_ID[cleanPart]) {
+            return { cellId: TOPIC_TO_CELL_ID[cleanPart], category: cat, subTopic: cleanPart };
+        }
+    }
+    
+    const fallback = cat === 'Culture' ? 'Misc_Culture' : 
+                     cat === 'Geography' ? 'Other_Regions' :
+                     cat === 'STEM' ? 'STEM_Group' : 'Society_Group';
+    return { cellId: TOPIC_TO_CELL_ID[fallback], category: cat, subTopic: fallback };
+}
+
+function getTopicId(topicString) {
+    const parts = topicString.split('.').map(p => p.replace(/\*$/, ''));
+    const cat = parts[0];
+    
+    for (let i = parts.length - 1; i >= 1; i--) {
+        const part = parts[i];
+        const cleanPart = part === 'STEM' ? 'STEM_Group' : part;
+        if (TOPIC_TO_CELL_ID[cleanPart]) return cleanPart;
+    }
+    
+    return cat === 'Culture' ? 'Misc_Culture' : 
+           cat === 'Geography' ? 'Other_Regions' :
+           cat === 'STEM' ? 'STEM_Group' : 'Society_Group';
+}
+
+async function getTopics(title) {
+    const now = Date.now();
+    if (topicCache.has(title)) {
+        const cached = topicCache.get(title);
+        if (now - cached.ts < CACHE_TTL) {
+            stats.hits++;
+            return cached.data;
+        }
+    }
+    
+    stats.misses++;
+    stats.api++;
+
+    try {
+        const res = await fetch(PROXY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ page_title: title, lang: 'en', threshold: 0.1 })
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        const results = data.prediction?.results || data.results || [];
+        topicCache.set(title, { ts: now, data: results });
+        return results;
+    } catch (e) {
+        return [];
+    }
+}
+
+// ==================== STATS ====================
+function updateStats() {
+    document.getElementById('stat-total').textContent = stats.total;
+    document.getElementById('stat-ns0').textContent = stats.ns0;
+    document.getElementById('stat-api').textContent = stats.api;
+    const rate = stats.hits + stats.misses > 0 
+        ? Math.round((stats.hits / (stats.hits + stats.misses)) * 100) 
+        : 0;
+    document.getElementById('stat-cache').textContent = rate + '%';
+}
+
+function updateRateStats() {
+    const now = Date.now();
+    const oneMinuteAgo = now - 60000;
+    const recent = editHistory.filter(e => e.time > oneMinuteAgo).length;
+    document.getElementById('stat-rate').textContent = recent;
+}
+
+// ==================== DOT VISUALIZATION ====================
+function addDot(cellId, category, confidence) {
+    const cell = document.getElementById(cellId);
+    if (!cell) return;
+
+    const dot = document.createElement('div');
+    dot.className = 'dot';
+    dot.style.backgroundColor = CATEGORY_COLORS[category] || '#888';
+    dot.style.opacity = Math.max(0.3, confidence);
+    dot.style.width = dot.style.height = (3 + confidence * 6) + 'px';
+    dot.style.left = (Math.random() * 80 + 10) + '%';
+    dot.style.top = (Math.random() * 60 + 20) + '%';
+    
+    cell.appendChild(dot);
+    
+    const decayTime = parseInt(decaySlider.value) * 1000;
+    setTimeout(() => {
+        dot.style.transition = `opacity ${Math.min(2000, decayTime / 2)}ms ease-out`;
+        dot.style.opacity = 0;
+    }, Math.max(0, decayTime - 2000));
+    setTimeout(() => dot.remove(), decayTime);
+}
+
+// ==================== LOG ====================
+function addLogEntry(change, topics) {
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    
+    let timeStr = '--:--';
+    if (change.meta?.dt) {
+        const dt = change.meta.dt;
+        const date = typeof dt === 'number' ? new Date(dt * 1000) : new Date(dt);
+        if (!isNaN(date.getTime())) {
+            timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+    }
+
+    const topicBadges = topics.slice(0, 2).map(t => {
+        const name = t.topic.split('.').pop().replace(/\*$/, '').replace(/_/g, ' ');
+        return `<span class="log-topic-badge">${name}</span>`;
+    }).join('');
+
+    entry.innerHTML = `
+        <div class="log-time">${timeStr}</div>
+        <div class="log-title"><a href="https://en.wikipedia.org/wiki/${encodeURIComponent(change.title)}" target="_blank">${change.title}</a></div>
+        <div class="log-topics">${topicBadges}</div>
+    `;
+
+    logContainer.insertBefore(entry, logContainer.firstChild);
+    if (logContainer.children.length > 30) logContainer.removeChild(logContainer.lastChild);
+}
+
+// ==================== SUNBURST ====================
+let sunburstRoot = null;
+let sunburstSvg, sunburstG, sunburstRadius;
+
+function initSunburst() {
+    const isSingle = currentSingleView === 'sunburst';
+    const svgId = isSingle ? 'sunburst-svg-single' : 'sunburst-svg';
+    const container = document.getElementById(svgId).parentElement;
+    const svgEl = document.getElementById(svgId);
+    const size = Math.max(100, Math.min(container.clientWidth, container.clientHeight) - 20);
+    sunburstRadius = size / 2;
+
+    sunburstSvg = d3.select(`#${svgId}`)
+        .attr('viewBox', `${-size/2} ${-size/2} ${size} ${size}`)
+        .attr('width', size)
+        .attr('height', size);
+    
+    sunburstSvg.selectAll('*').remove();
+
+    sunburstRoot = buildHierarchyData();
+    
+    const partition = d3.partition()
+        .size([2 * Math.PI, sunburstRadius * 0.85]);
+    
+    const root = partition(d3.hierarchy(sunburstRoot)
+        .sum(d => d.value || 0)
+        .sort((a, b) => b.value - a.value));
+
+    const arc = d3.arc()
+        .startAngle(d => {
+            const angle = d.x0;
+            return (angle && isFinite(angle)) ? Math.max(0, angle) : 0;
+        })
+        .endAngle(d => {
+            const angle = d.x1;
+            const maxAngle = 2 * Math.PI - 0.001;
+            return (angle && isFinite(angle)) ? Math.min(maxAngle, angle) : maxAngle;
+        })
+        .innerRadius(d => d.y0 || 0)
+        .outerRadius(d => Math.max(0, (d.y1 || 0) - 1));
+
+    sunburstG = sunburstSvg.append('g');
+
+    sunburstG.selectAll('path')
+        .data(root.descendants().filter(d => d.depth))
+        .join('path')
+        .attr('d', arc)
+        .attr('fill', d => getSunburstColor(d))
+        .attr('fill-opacity', 0.85)
+        .attr('stroke', '#0d1117')
+        .attr('stroke-width', 0.5)
+        .style('cursor', 'pointer')
+        .on('mouseover', function(event, d) {
+            d3.select(this).attr('fill-opacity', 1);
+            showTooltip(event, d);
+        })
+        .on('mouseout', function() {
+            d3.select(this).attr('fill-opacity', 0.85);
+            hideTooltip();
+        });
+
+    sunburstSvg.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('dy', '-0.3em')
+        .attr('font-size', '12px')
+        .attr('font-weight', 'bold')
+        .attr('fill', '#e6edf3')
+        .text('WikiEditTracker');
+}
+
+function buildHierarchyData() {
+    const data = { name: 'Wikipedia', children: [] };
+
+    Object.keys(TAXONOMY_TREE).forEach(cat => {
+        const catNode = {
+            name: cat,
+            color: CATEGORY_COLORS[cat],
+            children: []
+        };
+
+        TAXONOMY_TREE[cat].forEach(group => {
+            const groupNode = { name: group.name, children: [] };
+
+            group.subs.forEach(sub => {
+                groupNode.children.push({
+                    name: sub.replace(/_/g, ' '),
+                    topicId: sub,
+                    value: topicCounts[sub] || 0
+                });
+            });
+
+            if (group.id !== 'Americas') {
+                groupNode.children.push({
+                    name: '(General)',
+                    topicId: group.id,
+                    value: topicCounts[group.id] || 0
+                });
+            }
+
+            catNode.children.push(groupNode);
+        });
+
+        data.children.push(catNode);
+    });
+
+    return data;
+}
+
+function getSunburstColor(d) {
+    if (d.depth === 1) return d.data.color || CATEGORY_COLORS[d.data.name] || '#888';
+    if (d.depth === 2) return d3.color(d.parent.data.color || '#888').brighter(0.4).toString();
+    return d3.color(d.parent.data.color || '#888').brighter(0.8).toString();
+}
+
+function updateSunburst() {
+    if (!sunburstG) return;
+    
+    sunburstRoot = buildHierarchyData();
+    
+    const partition = d3.partition()
+        .size([2 * Math.PI, sunburstRadius * 0.85]);
+    
+    const root = partition(d3.hierarchy(sunburstRoot)
+        .sum(d => d.value || 0)
+        .sort((a, b) => b.value - a.value));
+
+    const arc = d3.arc()
+        .startAngle(d => {
+            const angle = d.x0;
+            return (angle && isFinite(angle)) ? Math.max(0, angle) : 0;
+        })
+        .endAngle(d => {
+            const angle = d.x1;
+            const maxAngle = 2 * Math.PI - 0.001;
+            return (angle && isFinite(angle)) ? Math.min(maxAngle, angle) : maxAngle;
+        })
+        .innerRadius(d => d.y0 || 0)
+        .outerRadius(d => Math.max(0, (d.y1 || 0) - 1));
+
+    sunburstG.selectAll('path')
+        .data(root.descendants().filter(d => d.depth))
+        .transition()
+        .duration(300)
+        .attr('d', arc)
+        .attr('fill', d => getSunburstColor(d));
+}
+
+let tooltip = null;
+function showTooltip(event, d) {
+    if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.style.cssText = 'position:fixed;background:#161b22;border:1px solid #30363d;padding:8px 12px;border-radius:6px;font-size:11px;color:#e6edf3;pointer-events:none;z-index:1000;';
+        document.body.appendChild(tooltip);
+    }
+    tooltip.innerHTML = `<strong>${d.data.name}</strong><br>Edits: ${d.value || 0}`;
+    tooltip.style.left = (event.pageX + 10) + 'px';
+    tooltip.style.top = (event.pageY - 10) + 'px';
+    tooltip.style.display = 'block';
+}
+
+function hideTooltip() {
+    if (tooltip) tooltip.style.display = 'none';
+}
+
+// ==================== STREAM GRAPH ====================
+let streamSvg, streamWidth, streamHeight, streamMargin;
+const streamCategories = ['Culture', 'Geography', 'History_and_Society', 'STEM'];
+
+function initStreamGraph() {
+    const svgId = currentSingleView === 'stream' ? 'streamgraph-svg-single' : 'streamgraph-svg';
+    const svgEl = document.getElementById(svgId);
+    if (!svgEl || svgEl.clientWidth === 0 || svgEl.clientHeight === 0) return;
+    const container = svgEl.parentElement;
+    
+    streamMargin = { top: 10, right: 15, bottom: 25, left: 35 };
+    streamWidth = Math.max(50, svgEl.clientWidth - streamMargin.left - streamMargin.right);
+    streamHeight = Math.max(50, svgEl.clientHeight - streamMargin.top - streamMargin.bottom);
+
+    streamSvg = d3.select(`#${svgId}`)
+        .attr('viewBox', `0 0 ${svgEl.clientWidth} ${svgEl.clientHeight}`);
+    
+    streamSvg.selectAll('*').remove();
+    streamSvg.append('g').attr('id', 'stream-area');
+    streamSvg.append('g').attr('id', 'stream-x-axis');
+    streamSvg.append('g').attr('id', 'stream-y-axis');
+
+    updateStreamGraph();
+}
+
+function updateStreamGraph() {
+    const svgId = currentSingleView === 'stream' ? 'streamgraph-svg-single' : 'streamgraph-svg';
+    const svgEl = document.getElementById(svgId);
+    if (!svgEl) return;
+    
+    streamWidth = svgEl.clientWidth - streamMargin.left - streamMargin.right;
+    streamHeight = svgEl.clientHeight - streamMargin.top - streamMargin.bottom;
+
+    const now = Date.now();
+    const cutoff = now - (streamGraphMinutes * 60 * 1000);
+    const recentEdits = editHistory.filter(e => e.time > cutoff);
+
+    const bucketSize = Math.max(5000, streamGraphMinutes * 1000 / 40);
+    const buckets = new Map();
+
+    for (let t = cutoff; t <= now; t += bucketSize) {
+        buckets.set(Math.floor(t / bucketSize), { 
+            time: Math.floor(t / bucketSize) * bucketSize, 
+            Culture: 0, Geography: 0, History_and_Society: 0, STEM: 0 
+        });
+    }
+
+    recentEdits.forEach(edit => {
+        const bucketKey = Math.floor(edit.time / bucketSize);
+        if (buckets.has(bucketKey)) {
+            buckets.get(bucketKey)[edit.category] = (buckets.get(bucketKey)[edit.category] || 0) + 1;
+        }
+    });
+
+    const data = Array.from(buckets.values()).sort((a, b) => a.time - b.time);
+    if (data.length < 2) return;
+
+    const x = d3.scaleTime()
+        .domain([data[0].time, data[data.length - 1].time])
+        .range([0, streamWidth]);
+
+    const stack = d3.stack()
+        .keys(streamCategories)
+        .offset(d3.stackOffsetWiggle);
+
+    const series = stack(data);
+
+    const yExtent = [
+        d3.min(series, s => d3.min(s, d => d[0])),
+        d3.max(series, s => d3.max(s, d => d[1]))
+    ];
+
+    const y = d3.scaleLinear()
+        .domain([yExtent[0], yExtent[1]])
+        .range([streamHeight, 0]);
+
+    const area = d3.area()
+        .x(d => x(d.data.time))
+        .y0(d => y(d[0]))
+        .y1(d => y(d[1]))
+        .curve(d3.curveBasis);
+
+    const g = streamSvg.select('#stream-area');
+    
+    const paths = g.selectAll('path.stream-path')
+        .data(series);
+
+    paths.enter()
+        .append('path')
+        .attr('class', 'stream-path')
+        .merge(paths)
+        .transition()
+        .duration(300)
+        .attr('d', area)
+        .attr('fill', d => CATEGORY_COLORS[d.key])
+        .attr('fill-opacity', 0.7);
+
+    paths.exit().remove();
+
+    streamSvg.select('#stream-x-axis')
+        .attr('transform', `translate(${streamMargin.left},${streamMargin.top + streamHeight})`)
+        .call(d3.axisBottom(x).ticks(4).tickFormat(d3.timeFormat('%H:%M')))
+        .selectAll('text').attr('fill', '#8b949e').attr('font-size', '9px');
+    streamSvg.select('#stream-x-axis').selectAll('line, path').attr('stroke', '#30363d');
+    
+    streamSvg.select('#stream-y-axis')
+        .attr('transform', `translate(${streamMargin.left},${streamMargin.top})`)
+        .call(d3.axisLeft(y).ticks(3))
+        .selectAll('text').attr('fill', '#8b949e').attr('font-size', '9px');
+    streamSvg.select('#stream-y-axis').selectAll('line, path').attr('stroke', '#30363d');
+}
+
+// ==================== SPARKLINES UPDATE ====================
+function updateSparklines() {
+    Object.keys(sparklineData).forEach(topicId => {
+        const canvas = document.getElementById(`sparkcanvas-${topicId}`);
+        const valueEl = document.getElementById(`sparkval-${topicId}`);
+        const data = sparklineData[topicId];
+
+        if (!data) return;
+
+        const sum = data.reduce((a, b) => a + b, 0);
+
+        if (valueEl) {
+            valueEl.textContent = sum;
+        }
+
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width;
+        const h = canvas.height;
+
+        ctx.clearRect(0, 0, w, h);
+        
+        if (data.length < 2) return;
+
+        const max = Math.max(...data, 1);
+        
+        const catKey = Object.keys(CATEGORY_COLORS).find(c => TOPIC_TO_CELL_ID[topicId]?.includes(c));
+        const strokeColor = CATEGORY_COLORS[catKey] || '#2196f3';
+
+        ctx.beginPath();
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 1;
+        
+        data.forEach((v, i) => {
+            const x = (i / (data.length - 1)) * w;
+            const y = h - (v / max) * (h - 2) - 1;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        ctx.lineTo(w, h);
+        ctx.lineTo(0, h);
+        ctx.closePath();
+        ctx.fillStyle = strokeColor + '25';
+        ctx.fill();
+    });
+}
+
+// ==================== MODE SWITCHING ====================
+function switchMode(mode) {
+    currentMode = mode;
+    
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+
+    const dashboard = document.getElementById('dashboard');
+    const singleContainers = document.querySelectorAll('.single-view-container');
+
+    if (mode === 'dashboard') {
+        dashboard.classList.remove('hidden');
+        singleContainers.forEach(c => c.classList.remove('active'));
+        
+        setTimeout(() => {
+            initSunburst();
+            initStreamGraph();
+        }, 50);
+    } else {
+        dashboard.classList.add('hidden');
+        currentSingleView = mode;
+        
+        singleContainers.forEach(c => c.classList.remove('active'));
+        document.getElementById(`single-${mode}`).classList.add('active');
+        
+        setTimeout(() => {
+            if (mode === 'sunburst') {
+                initSunburst();
+            } else if (mode === 'stream') {
+                initStreamGraph();
+            }
+        }, 50);
+    }
+}
+
+// ==================== EVENT PROCESSING ====================
+async function processEdit(change) {
+    const eventId = change.meta?.id;
+    if (eventId) {
+        if (processedIds.has(eventId)) return;
+        processedIds.add(eventId);
+        if (processedIds.size > MAX_PROCESSED_IDS) {
+            const firstId = processedIds.values().next().value;
+            processedIds.delete(firstId);
+        }
+    }
+
+    stats.total++;
+    
+    if (change.server_name === 'en.wikipedia.org' && change.namespace === 0 && !change.meta.domain?.includes('canary')) {
+        stats.ns0++;
+        updateStats();
+        
+        const topics = await getTopics(change.title);
+        const threshold = parseFloat(confidenceSlider.value);
+        const filtered = topics.filter(t => t.score >= threshold);
+        
+        if (filtered.length > 0) {
+            const now = Date.now();
+            
+            filtered.forEach(t => {
+                const mapped = mapTopicToCell(t.topic);
+                const topicId = getTopicId(t.topic);
+                
+                topicCounts[topicId] = (topicCounts[topicId] || 0) + 1;
+                
+                editHistory.push({
+                    time: now,
+                    topic: topicId,
+                    category: mapped.category,
+                    confidence: t.score
+                });
+                
+                if (editHistory.length > MAX_HISTORY) {
+                    editHistory = editHistory.slice(-MAX_HISTORY);
+                }
+
+                if (sparklineData[topicId]) {
+                    sparklineData[topicId].push(1);
+                    if (sparklineData[topicId].length > 30) {
+                        sparklineData[topicId].shift();
+                    }
+                }
+
+                addDot(mapped.cellId, mapped.category, t.score);
+            });
+            
+            addLogEntry(change, filtered);
+            updateSunburst();
+        }
+    }
+}
+
+// ==================== EVENT STREAM ====================
+const source = new EventSource(EVENTSTREAM_URL);
+source.onmessage = async (e) => {
+    const change = JSON.parse(e.data);
+    processEdit(change);
+};
+
+// ==================== INTERVALS ====================
+setInterval(() => {
+    Object.keys(sparklineData).forEach(topicId => {
+        sparklineData[topicId].push(0);
+        if (sparklineData[topicId].length > 30) {
+            sparklineData[topicId].shift();
+        }
+    });
+    
+    updateSparklines();
+    updateRateStats();
+}, 2000);
+
+setInterval(() => {
+    if (currentMode === 'dashboard' || currentSingleView === 'stream') {
+        updateStreamGraph();
+    }
+}, 5000);
+
+// ==================== EVENT LISTENERS ====================
+document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchMode(btn.dataset.mode));
+});
+
+document.querySelectorAll('.time-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        streamGraphMinutes = parseInt(btn.dataset.minutes);
+        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        updateStreamGraph();
+    });
+});
+
+confidenceSlider.oninput = () => {
+    confidenceValue.textContent = parseFloat(confidenceSlider.value).toFixed(2);
+};
+decaySlider.oninput = () => decayValue.textContent = decaySlider.value + 's';
+
+window.addEventListener('resize', () => {
+    if (currentMode === 'dashboard' || currentSingleView === 'sunburst') initSunburst();
+    if (currentMode === 'dashboard' || currentSingleView === 'stream') initStreamGraph();
+});
+
+// ==================== INIT ====================
+initMiniTreemapUI();
+initFullTreemapUI();
+initSparklinesUI();
+
+// Initialize dashboard visualizations
+setTimeout(() => {
+    initSunburst();
+    initStreamGraph();
+}, 100);
+</script>
+</body>
+</html>
