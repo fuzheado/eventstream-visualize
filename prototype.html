@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wikipedia Topic Visualizer - Ultimate Prototype</title>
+    <title>WikiEditTracker - Wikipedia Topic Visualizer</title>
     <style>
         :root {
             --culture: #e91e63;
@@ -35,6 +35,21 @@
             align-items: center;
             box-shadow: 0 2px 10px rgba(0,0,0,0.5);
             z-index: 10;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .app-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #fff;
+            letter-spacing: 1px;
+            border-right: 2px solid #444;
+            padding-right: 20px;
         }
 
         .stats-grid {
@@ -198,30 +213,38 @@
 <body>
 
 <header>
-    <div class="stats-grid">
-        <div class="stat-item">
-            <span class="stat-value" id="stat-total">0</span>
-            <span class="stat-label">Total Events</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-value" id="stat-ns0">0</span>
-            <span class="stat-label">Article Edits</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-value" id="stat-api">0</span>
-            <span class="stat-label">API Calls</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-value" id="stat-cache">0%</span>
-            <span class="stat-label">Cache Hit %</span>
+    <div class="header-left">
+        <div class="app-title">WikiEditTracker</div>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <span class="stat-value" id="stat-total">0</span>
+                <span class="stat-label">Total Events</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="stat-ns0">0</span>
+                <span class="stat-label">Article Edits</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="stat-api">0</span>
+                <span class="stat-label">API Calls</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="stat-cache">0%</span>
+                <span class="stat-label">Cache Hit %</span>
+            </div>
         </div>
     </div>
 
     <div class="controls">
-        <span class="stat-label">Min Confidence</span>
-        <input type="range" id="confidence-slider" min="0" max="1" step="0.05" value="0.15">
-        <span id="confidence-value">0.15</span>
-        <button id="clear-btn" style="margin-left:10px; padding: 4px 10px; border-radius: 3px; border:none; background:#555; color:white; cursor:pointer;">Clear</button>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span class="stat-label">Min Confidence: <span id="confidence-value">0.15</span></span>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.05" value="0.15">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span class="stat-label">Decay (sec): <span id="decay-value">5</span></span>
+            <input type="range" id="decay-slider" min="1" max="20" step="1" value="5">
+        </div>
+        <button id="clear-btn" style="margin-left:10px; padding: 6px 15px; border-radius: 3px; border:none; background:#555; color:white; cursor:pointer; font-weight:bold;">Clear</button>
     </div>
 </header>
 
@@ -289,6 +312,8 @@
     const logContainer = document.getElementById('log-container');
     const confidenceSlider = document.getElementById('confidence-slider');
     const confidenceValue = document.getElementById('confidence-value');
+    const decaySlider = document.getElementById('decay-slider');
+    const decayValue = document.getElementById('decay-value');
     
     // Initialize Grid
     Object.keys(TAXONOMY).forEach(cat => {
@@ -328,25 +353,48 @@
         
         cell.appendChild(dot);
         
-        setTimeout(() => dot.classList.add('fade-out'), 2000);
-        setTimeout(() => dot.remove(), 5000);
+        const decayTime = parseInt(decaySlider.value) * 1000;
+        
+        // Use transition for fade
+        setTimeout(() => {
+            dot.style.transition = `opacity ${Math.min(2000, decayTime / 2)}ms ease-out`;
+            dot.style.opacity = 0;
+        }, Math.max(0, decayTime - 2000));
+        
+        setTimeout(() => dot.remove(), decayTime);
     }
 
     function addLogEntry(change, topics) {
         const entry = document.createElement('div');
         entry.className = 'log-entry';
         
-        let time = '??:??';
-        try {
-            time = new Date(change.meta.dt * 1000).toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
-        } catch(e){}
+        let timeStr = '???:??';
+        if (change.meta) {
+            if (change.meta.dt !== undefined) {
+                const dt = change.meta.dt;
+                if (typeof dt === 'number' && !isNaN(dt)) {
+                    timeStr = new Date(dt * 1000).toLocaleTimeString();
+                } else if (typeof dt === 'string') {
+                    const date = new Date(dt);
+                    if (!isNaN(date.getTime())) {
+                        timeStr = date.toLocaleTimeString();
+                    }
+                }
+            }
+            if (timeStr === '???:??' && change.meta.dt_utc !== undefined) {
+                const date = new Date(change.meta.dt_utc);
+                if (!isNaN(date.getTime())) {
+                    timeStr = date.toLocaleTimeString();
+                }
+            }
+        }
 
         const topicTags = topics.slice(0, 2).map(t => 
             `<span class="topic-mini-tag">${t.topic.split('.').pop().replace(/\*$/, '')} (${t.score.toFixed(2)})</span>`
         ).join('');
 
         entry.innerHTML = `
-            <div class="log-time">${time}</div>
+            <div class="log-time">${timeStr}</div>
             <div class="log-title"><a href="https://en.wikipedia.org/wiki/${encodeURIComponent(change.title)}" target="_blank">${change.title}</a></div>
             <div class="log-user">by ${change.user}</div>
             <div class="log-topics">${topicTags}</div>
@@ -415,6 +463,8 @@
 
     // Handlers
     confidenceSlider.oninput = () => confidenceValue.textContent = confidenceSlider.value;
+    decaySlider.oninput = () => decayValue.textContent = decaySlider.value;
+    
     document.getElementById('clear-btn').onclick = () => {
         logContainer.innerHTML = '';
         topicCache.clear();
