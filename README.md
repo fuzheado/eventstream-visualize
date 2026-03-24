@@ -29,6 +29,8 @@ Features:
 http://localhost:3000/prototype3.html
 ```
 
+![WikiEditTracker 3.0 Dashboard](snapshot3.png)
+
 ### WikiEditTracker 2.0
 **File: `prototype2.html`**
 
