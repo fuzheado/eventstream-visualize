@@ -498,7 +498,7 @@
             renderDonut('wikidata-edittype', null, mapToData(wikidataStats.editType), CHART_COLORS.edittype, getTotal(wikidataStats.editType));
             renderDonut('wikidata-bot', null, mapToData(wikidataStats.bot), CHART_COLORS.bot, getTotal(wikidataStats.bot));
 
-            const wiki = wikipediaStats[lang] || { editType: { edit: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } };
+            const wiki = wikipediaStats[lang] || { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } };
             renderDonut('wiki-edittype', null, mapToData(wiki.editType), CHART_COLORS.edittype, getTotal(wiki.editType));
             renderDonut('wiki-namespace', null, mapToNamespaceData(wiki.namespace), CHART_COLORS.namespace, getTotal(wiki.namespace));
             renderDonut('wiki-bot', null, mapToData(wiki.bot), CHART_COLORS.bot, getTotal(wiki.bot));
