@@ -938,7 +938,10 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('wiki-select').addEventListener('change', updateStats);
+            const wikiSelect = document.getElementById('wiki-select');
+            if (wikiSelect) {
+                wikiSelect.addEventListener('change', updateStats);
+            }
             document.querySelectorAll('.mode-btn').forEach(btn => {
                 btn.addEventListener('click', () => switchMode(btn.dataset.mode));
             });
