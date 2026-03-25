@@ -910,9 +910,11 @@
             }
         }
 
-        document.getElementById('wiki-select').addEventListener('change', updateStats);
-        document.querySelectorAll('.mode-btn').forEach(btn => {
-            btn.addEventListener('click', () => switchMode(btn.dataset.mode));
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('wiki-select').addEventListener('change', updateStats);
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.addEventListener('click', () => switchMode(btn.dataset.mode));
+            });
         });
 
         // Process incoming event data
