@@ -853,6 +853,7 @@
 
         function renderDonut(svgId, legendId, data, colors, total) {
             const svgEl = document.getElementById(svgId);
+            if (!svgEl) return;
             const width = 180, height = 180, radius = Math.min(width, height) / 2;
             const innerRadius = radius * 0.6;
 
@@ -860,7 +861,7 @@
             
             if (data.length === 0 || total === 0) {
                 svgEl.innerHTML = '<text x="90" y="95" text-anchor="middle" fill="#8b949e" font-size="12">No data</text>';
-                document.getElementById(legendId).innerHTML = '';
+                if (legendId) document.getElementById(legendId).innerHTML = '';
                 return;
             }
 
@@ -902,20 +903,6 @@
                 .attr('fill', '#8b949e')
                 .attr('font-size', '10px')
                 .text('events');
-
-            const legend = document.getElementById(legendId);
-            legend.innerHTML = data.map((d, i) => {
-                const percent = ((d.value / total) * 100).toFixed(1);
-                return `
-                    <div class="legend-row">
-                        <div class="legend-row-left">
-                            <div class="legend-dot" style="background: ${colors[i % colors.length]}"></div>
-                            <span class="legend-label">${d.name}</span>
-                        </div>
-                        <span class="legend-value">${formatNumber(d.value)} (${percent}%)</span>
-                    </div>
-                `;
-            }).join('');
         }
 
         function updateLegend() {
