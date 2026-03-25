@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wiki Activity Counter - Lite</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --card: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-dim: #8b949e;
+            --accent: #58a6ff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .header-left {
+            flex: 1;
+        }
+
+        h1 {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+            color: var(--text);
+        }
+
+        .stats-row {
+            display: flex;
+            gap: 25px;
+            align-items: baseline;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 0.8em;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        .mode-toggle {
+            display: flex;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 3px;
+            gap: 3px;
+        }
+
+        .mode-btn {
+            padding: 8px 16px;
+            border: none;
+            background: transparent;
+            color: var(--text-dim);
+            font-size: 0.85em;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .mode-btn:hover { color: var(--text); }
+        .mode-btn.active { background: var(--accent); color: #fff; }
+
+        .counter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 10px;
+        }
+
+        .counter-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .counter-card.wikipedia { border-left: 3px solid #0066cc; }
+        .counter-card.wikimedia { border-left: 3px solid #006699; }
+        .counter-card.wiktionary { border-left: 3px solid #990066; }
+        .counter-card.wikiquote { border-left: 3px solid #996600; }
+        .counter-card.wikibooks { border-left: 3px solid #660099; }
+        .counter-card.wikisource { border-left: 3px solid #006600; }
+        .counter-card.wikinews { border-left: 3px solid #ff6600; }
+        .counter-card.wikiversity { border-left: 3px solid #660066; }
+        .counter-card.wikivoyage { border-left: 3px solid #336600; }
+        .counter-card.wikidata { border-left: 3px solid #006699; }
+        .counter-card.other { border-left: 3px solid #888; }
+        .counter-card.wikidata { border-left: 3px solid #006699; }
+        .counter-card.other { border-left: 3px solid #888; }
+
+        .counter-name {
+            font-size: 0.85em;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .counter-name .lang {
+            display: block;
+            font-size: 0.75em;
+            color: var(--text-dim);
+            margin-top: 2px;
+        }
+
+        .counter-value {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: var(--accent);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .no-activity {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 40px;
+            color: var(--text-dim);
+        }
+
+        .recent-events {
+            margin-top: 30px;
+        }
+
+        .recent-events h2 {
+            font-size: 1em;
+            margin-bottom: 10px;
+            color: var(--text-dim);
+        }
+
+        .event-list {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .event-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            display: grid;
+            grid-template-columns: 80px 100px 1fr;
+            gap: 10px;
+            font-size: 0.8em;
+        }
+
+        .event-item:last-child { border-bottom: none; }
+
+        .event-time { color: var(--text-dim); font-family: monospace; }
+        .event-source { color: var(--accent); font-weight: 600; }
+        .event-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* Sunburst */
+        .sunburst-container {
+            display: none;
+            flex-direction: column;
+            height: calc(100vh - 140px);
+        }
+
+        .sunburst-container.active { display: flex; }
+
+        .basic-view.hidden { display: none; }
+
+        #sunburst-svg {
+            flex: 1;
+            width: 100%;
+        }
+
+        .sunburst-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            padding: 15px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8em;
+            color: var(--text-dim);
+        }
+
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+        }
+
+        .tooltip {
+            position: fixed;
+            background: var(--card);
+            border: 1px solid var(--border);
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: var(--text);
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+        }
+
+        .tooltip strong {
+            display: block;
+            margin-bottom: 4px;
+            color: var(--accent);
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <h1>Wiki Activity Counter</h1>
+            <div class="stats-row">
+                <div class="stat-item">
+                    <span class="stat-value" id="total-count">0</span>
+                    <span class="stat-label">Total Events</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="active-sources">0</span>
+                    <span class="stat-label">Active Sources</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="rate">0</span>
+                    <span class="stat-label">Events/min</span>
+                </div>
+            </div>
+        </div>
+        <div class="mode-toggle">
+            <button class="mode-btn active" data-mode="basic">Basic</button>
+            <button class="mode-btn" data-mode="sunburst">Sunburst</button>
+        </div>
+    </header>
+
+    <div class="basic-view" id="basic-view">
+        <div class="counter-grid" id="counter-grid">
+            <div class="no-activity">Connecting to event stream...</div>
+        </div>
+
+        <div class="recent-events">
+            <h2>Recent Events</h2>
+            <div class="event-list" id="event-list"></div>
+        </div>
+    </div>
+
+    <div class="sunburst-container" id="sunburst-view">
+        <svg id="sunburst-svg"></svg>
+        <div class="sunburst-legend" id="sunburst-legend"></div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        const EVENTSTREAM_URL = 'https://stream.wikimedia.org/v2/stream/recentchange';
+
+        const PROJECT_COLORS = {
+            'Wikipedia': '#0066cc',
+            'Wiktionary': '#990066',
+            'Wikiquote': '#996600',
+            'Wikibooks': '#660099',
+            'Wikisource': '#006600',
+            'Wikinews': '#ff6600',
+            'Wikiversity': '#660066',
+            'Wikivoyage': '#336600',
+            'Commons': '#006699',
+            'Wikidata': '#006699',
+            'Other': '#888888'
+        };
+
+
+
+        const sourceCounts = new Map();
+        const projectCounts = new Map();
+        const recentEdits = [];
+        const MAX_RECENT = 20;
+        let totalEvents = 0;
+        let currentMode = 'basic';
+
+        function getProjectAndLang(serverName) {
+            if (!serverName) return { project: 'Other', lang: null, hasLangEdition: false };
+            
+            const parts = serverName.split('.');
+            if (parts.length < 2) return { project: 'Other', lang: null, hasLangEdition: false };
+            
+            const lang = parts[0];
+            const project = parts[1];
+            
+            const projectNames = {
+                'wikipedia': 'Wikipedia',
+                'wikimedia': 'Commons',
+                'wiktionary': 'Wiktionary',
+                'wikiquote': 'Wikiquote',
+                'wikibooks': 'Wikibooks',
+                'wikisource': 'Wikisource',
+                'wikinews': 'Wikinews',
+                'wikiversity': 'Wikiversity',
+                'wikivoyage': 'Wikivoyage',
+                'wikidata': 'Wikidata'
+            };
+            
+            const projectName = projectNames[project] || project;
+            
+            const noLangProjects = ['commons', 'wikidata', 'wikimedia'];
+            const hasLangEdition = !noLangProjects.includes(lang);
+            
+            return { project: projectName, lang, hasLangEdition };
+        }
+
+        function getProjectType(serverName) {
+            if (!serverName) return 'other';
+            const lower = serverName.toLowerCase();
+            if (lower.includes('wikipedia.org')) return 'wikipedia';
+            if (lower.includes('wikimedia.org') && !lower.includes('wikipedia')) return 'wikimedia';
+            if (lower.includes('wiktionary.org')) return 'wiktionary';
+            if (lower.includes('wikiquote.org')) return 'wikiquote';
+            if (lower.includes('wikibooks.org')) return 'wikibooks';
+            if (lower.includes('wikisource.org')) return 'wikisource';
+            if (lower.includes('wikinews.org')) return 'wikinews';
+            if (lower.includes('wikiversity.org')) return 'wikiversity';
+            if (lower.includes('wikivoyage.org')) return 'wikivoyage';
+            if (lower.includes('wikidata.org')) return 'wikidata';
+            return 'other';
+        }
+
+        function getDisplayName(serverName) {
+            if (!serverName) return 'Unknown';
+            
+            const parts = serverName.split('.');
+            if (parts.length >= 2) {
+                const lang = parts[0];
+                const project = parts[1];
+                
+                const projectNames = {
+                    'wikipedia': 'Wikipedia',
+                    'wikimedia': 'Commons',
+                    'wiktionary': 'Wiktionary',
+                    'wikiquote': 'Wikiquote',
+                    'wikibooks': 'Wikibooks',
+                    'wikisource': 'Wikisource',
+                    'wikinews': 'Wikinews',
+                    'wikiversity': 'Wikiversity',
+                    'wikivoyage': 'Wikivoyage',
+                    'wikidata': 'Wikidata'
+                };
+                
+                const projectName = projectNames[project] || project;
+                const langNames = {
+                    'en': 'English', 'de': 'German', 'fr': 'French', 'es': 'Spanish',
+                    'it': 'Italian', 'ru': 'Russian', 'ja': 'Japanese', 'zh': 'Chinese',
+                    'pt': 'Portuguese', 'pl': 'Polish', 'nl': 'Dutch', 'ar': 'Arabic',
+                    'ko': 'Korean', 'sv': 'Swedish', 'vi': 'Vietnamese', 'uk': 'Ukrainian',
+                    'cs': 'Czech', 'hu': 'Hungarian', 'tr': 'Turkish', 'fa': 'Persian',
+                    'id': 'Indonesian', 'ro': 'Romanian', 'fi': 'Finnish', 'no': 'Norwegian',
+                    'da': 'Danish', 'sk': 'Slovak', 'th': 'Thai', 'el': 'Greek',
+                    'he': 'Hebrew', 'bg': 'Bulgarian', 'ca': 'Catalan', 'sr': 'Serbian',
+                    'hy': 'Armenian', 'eu': 'Basque', 'be': 'Belarusian', 'lt': 'Lithuanian',
+                    'sl': 'Slovenian', 'bn': 'Bengali', 'hr': 'Croatian', 'mk': 'Macedonian',
+                    'ta': 'Tamil', 'te': 'Telugu', 'mr': 'Marathi', 'ml': 'Malayalam',
+                    'kn': 'Kannada', 'pa': 'Punjabi', 'hi': 'Hindi', 'ur': 'Urdu',
+                    'gu': 'Gujarati', 'ne': 'Nepali', 'af': 'Afrikaans', 'sw': 'Swahili',
+                    'kk': 'Kazakh', 'az': 'Azerbaijani', 'ky': 'Kyrgyz', 'tg': 'Tajik'
+                };
+                
+                const langName = langNames[lang] || lang;
+                
+                return { project: projectName, lang: langName, full: `${langName} ${projectName}` };
+            }
+            
+            return { project: serverName, lang: '', full: serverName };
+        }
+
+        function formatNumber(num) {
+            return num.toLocaleString();
+        }
+
+        function updateCounters() {
+            const grid = document.getElementById('counter-grid');
+            
+            if (sourceCounts.size === 0) {
+                grid.innerHTML = '<div class="no-activity">Waiting for events...</div>';
+                return;
+            }
+
+            const sorted = [...sourceCounts.entries()]
+                .sort((a, b) => b[1].count - a[1].count);
+
+            grid.innerHTML = sorted.map(([serverName, data]) => `
+                <div class="counter-card ${data.type}">
+                    <div class="counter-name">
+                        ${data.display.full}
+                        <span class="lang">${serverName}</span>
+                    </div>
+                    <div class="counter-value">${formatNumber(data.count)}</div>
+                </div>
+            `).join('');
+
+            document.getElementById('total-count').textContent = formatNumber(totalEvents);
+            document.getElementById('active-sources').textContent = sourceCounts.size;
+        }
+
+        function addRecentEvent(time, serverName, title) {
+            const date = new Date(time);
+            const timeStr = date.toLocaleTimeString([], { 
+                hour: '2-digit', minute: '2-digit', second: '2-digit' 
+            });
+
+            recentEdits.unshift({ time: timeStr, source: serverName, title: title });
+            if (recentEdits.length > MAX_RECENT) recentEdits.pop();
+
+            const list = document.getElementById('event-list');
+            list.innerHTML = recentEdits.map(e => `
+                <div class="event-item">
+                    <span class="event-time">${e.time}</span>
+                    <span class="event-source">${e.source}</span>
+                    <span class="event-title">${e.title}</span>
+                </div>
+            `).join('');
+        }
+
+        function buildHierarchyData() {
+            const data = { name: 'Wikimedia', children: [] };
+            
+            const projectMap = new Map();
+            
+            sourceCounts.forEach((info, serverName) => {
+                const { project, lang, hasLangEdition } = getProjectAndLang(serverName);
+                
+                if (!projectMap.has(project)) {
+                    projectMap.set(project, {
+                        name: project,
+                        children: [],
+                        hasLangEdition: ['Wikipedia', 'Wiktionary', 'Wikiquote', 'Wikibooks', 'Wikisource', 'Wikinews', 'Wikiversity', 'Wikivoyage'].includes(project)
+                    });
+                }
+                
+                if (hasLangEdition && lang) {
+                    const existingLang = projectMap.get(project).children.find(c => c.name === lang);
+                    if (existingLang) {
+                        existingLang.value = (existingLang.value || 0) + info.count;
+                    } else {
+                        projectMap.get(project).children.push({
+                            name: lang,
+                            value: info.count
+                        });
+                    }
+                } else {
+                    const existingProject = projectMap.get(project).children.find(c => c.name === serverName);
+                    if (existingProject) {
+                        existingProject.value = (existingProject.value || 0) + info.count;
+                    } else {
+                        projectMap.get(project).children.push({
+                            name: serverName,
+                            value: info.count
+                        });
+                    }
+                }
+            });
+            
+            projectMap.forEach((projectData, projectName) => {
+                if (projectData.children.length > 0) {
+                    projectData.children.sort((a, b) => (b.value || 0) - (a.value || 0));
+                    data.children.push(projectData);
+                }
+            });
+            
+            data.children.sort((a, b) => {
+                const aTotal = a.children.reduce((sum, c) => sum + (c.value || 0), 0);
+                const bTotal = b.children.reduce((sum, c) => sum + (c.value || 0), 0);
+                return bTotal - aTotal;
+            });
+            
+            return data;
+        }
+
+        function getColor(d) {
+            if (d.depth === 0) return '#0d1117';
+            if (d.depth === 1) {
+                return PROJECT_COLORS[d.data.name] || '#888888';
+            }
+            if (d.depth === 2) {
+                const parentColor = PROJECT_COLORS[d.parent.data.name] || '#888888';
+                return d3.color(parentColor).brighter(0.6).toString();
+            }
+            return '#888888';
+        }
+
+        let sunburstSvg, sunburstRadius;
+        let tooltip;
+
+        function initSunburst() {
+            const container = document.getElementById('sunburst-view');
+            const svgEl = document.getElementById('sunburst-svg');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            const size = Math.min(width, height) - 20;
+            sunburstRadius = size / 2;
+            
+            svgEl.innerHTML = '';
+            svgEl.setAttribute('viewBox', `${-size/2} ${-size/2} ${size} ${size}`);
+            
+            sunburstSvg = d3.select('#sunburst-svg');
+            
+            tooltip = d3.select('#tooltip');
+            
+            updateSunburst();
+        }
+
+        function updateSunburst() {
+            if (sourceCounts.size === 0) return;
+            
+            const hierarchyData = buildHierarchyData();
+            
+            const container = document.getElementById('sunburst-view');
+            const svgEl = document.getElementById('sunburst-svg');
+            const width = container.clientWidth || 800;
+            const height = container.clientHeight || 500;
+            const size = Math.min(width, height) - 20;
+            sunburstRadius = size / 2;
+            
+            svgEl.setAttribute('viewBox', `${-size/2} ${-size/2} ${size} ${size}`);
+            
+            const root = d3.hierarchy(hierarchyData)
+                .sum(d => d.value || 0)
+                .sort((a, b) => b.value - a.value);
+            
+            const partition = d3.partition()
+                .size([2 * Math.PI, sunburstRadius]);
+            
+            const partitionedRoot = partition(root);
+            
+            const arc = d3.arc()
+                .startAngle(d => Math.max(0, Math.min(d.x0, 2 * Math.PI)))
+                .endAngle(d => {
+                    const end = Math.min(d.x1, 2 * Math.PI);
+                    return Math.max(d.x0 + 0.001, end);
+                })
+                .innerRadius(d => d.y0)
+                .outerRadius(d => d.y1 - 1);
+            
+            const validArcs = partitionedRoot.descendants()
+                .filter(d => d.depth && (d.x1 - d.x0) > 0.01);
+            
+            sunburstSvg.selectAll('path').remove();
+            
+            sunburstSvg.selectAll('path')
+                .data(validArcs)
+                .join('path')
+                .attr('d', arc)
+                .attr('fill', d => getColor(d))
+                .attr('fill-opacity', 0.85)
+                .attr('stroke', '#0d1117')
+                .attr('stroke-width', 0.5)
+                .style('cursor', 'pointer')
+                .on('mouseover', function(event, d) {
+                    d3.select(this).attr('fill-opacity', 1);
+                    const parentName = d.depth > 1 ? d.parent.data.name : '';
+                    const value = d.value || 0;
+                    const percent = totalEvents > 0 ? ((value / totalEvents) * 100).toFixed(1) : 0;
+                    tooltip
+                        .style('display', 'block')
+                        .style('left', (event.pageX + 10) + 'px')
+                        .style('top', (event.pageY - 10) + 'px')
+                        .html(`<strong>${d.data.name}</strong>${parentName ? `<br>${parentName}` : ''}<br>${formatNumber(value)} events (${percent}%)`);
+                })
+                .on('mouseout', function() {
+                    d3.select(this).attr('fill-opacity', 0.85);
+                    tooltip.style('display', 'none');
+                });
+
+            sunburstSvg.selectAll('text').remove();
+            
+            const labelArcs = validArcs.filter(d => (d.x1 - d.x0) > 0.15);
+            
+            sunburstSvg.selectAll('text')
+                .data(labelArcs)
+                .join('text')
+                .attr('transform', d => {
+                    const angle = (d.x0 + d.x1) / 2;
+                    const r = (d.y0 + d.y1) / 2;
+                    return `rotate(${angle * 180 / Math.PI - 90}) translate(${r},0) rotate(${angle > Math.PI ? 180 : 0})`;
+                })
+                .attr('text-anchor', 'middle')
+                .attr('dy', '0.35em')
+                .attr('fill', '#fff')
+                .attr('font-size', d => d.depth === 1 ? '11px' : '9px')
+                .attr('font-weight', d => d.depth === 1 ? 'bold' : 'normal')
+                .text(d => d.data.name.length > 12 ? d.data.name.substring(0, 10) + '...' : d.data.name);
+
+            updateLegend();
+        }
+
+        function updateLegend() {
+            const legend = document.getElementById('sunburst-legend');
+            const hierarchyData = buildHierarchyData();
+            
+            legend.innerHTML = hierarchyData.children.map(project => {
+                const total = project.children.reduce((sum, c) => sum + (c.value || 0), 0);
+                return `
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: ${PROJECT_COLORS[project.name] || '#888'}"></div>
+                        <span>${project.name}: ${formatNumber(total)}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function switchMode(mode) {
+            currentMode = mode;
+            
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.mode === mode);
+            });
+
+            const basicView = document.getElementById('basic-view');
+            const sunburstView = document.getElementById('sunburst-view');
+
+            if (mode === 'basic') {
+                basicView.classList.remove('hidden');
+                sunburstView.classList.remove('active');
+            } else {
+                basicView.classList.add('hidden');
+                sunburstView.classList.add('active');
+                
+                setTimeout(() => {
+                    initSunburst();
+                }, 100);
+            }
+        }
+
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => switchMode(btn.dataset.mode));
+        });
+
+        function processEvent(data) {
+            totalEvents++;
+
+            const serverName = data.server_name || data.meta?.domain || 'unknown';
+            const projectType = getProjectType(serverName);
+            const displayName = getDisplayName(serverName);
+
+            if (!sourceCounts.has(serverName)) {
+                sourceCounts.set(serverName, {
+                    count: 0,
+                    type: projectType,
+                    display: displayName
+                });
+            }
+
+            sourceCounts.get(serverName).count++;
+
+            const time = data.timestamp || Date.now();
+            const title = data.title || '';
+            addRecentEvent(time, serverName, title);
+
+            updateCounters();
+            
+            if (currentMode === 'sunburst') {
+                updateSunburst();
+            }
+        }
+
+        const source = new EventSource(EVENTSTREAM_URL);
+        
+        source.onopen = () => {
+            console.log('Connected to event stream');
+        };
+        
+        source.onmessage = (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                processEvent(data);
+            } catch (err) {
+                console.error('Failed to parse event:', err);
+            }
+        };
+        
+        source.onerror = (err) => {
+            console.error('EventSource error:', err);
+        };
+
+        let rateCounter = 0;
+        let lastTotal = 0;
+        
+        setInterval(() => {
+            const current = totalEvents - lastTotal;
+            document.getElementById('rate').textContent = current;
+            lastTotal = totalEvents;
+        }, 60000);
+
+        window.addEventListener('resize', () => {
+            if (currentMode === 'sunburst') {
+                initSunburst();
+            }
+        });
+    </script>
+</body>
+</html>
