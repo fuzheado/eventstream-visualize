@@ -952,7 +952,7 @@
             const { project, lang } = getProjectAndLang(serverName);
 
             // Determine target stats object
-            let target;
+            let target = null;
             if (project === 'Commons') target = commonsStats;
             else if (project === 'Wikidata') target = wikidataStats;
             else if (project === 'Wikipedia') {
