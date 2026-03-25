@@ -478,10 +478,43 @@
             
             return { project: projectName, lang, hasLangEdition };
         }
+        // Stats tracking
         const commonsStats = { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, bot: { bot: 0, human: 0 } };
         const wikidataStats = { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, bot: { bot: 0, human: 0 } };
         const wikipediaStats = { 
             en: { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } }
+        };
+        const minorCounts = { minor: 0, major: 0 };
+        const namespaceCounts = new Map();
+
+        const NAMESPACE_NAMES = {
+            0: 'Article',
+            1: 'Talk',
+            2: 'User',
+            3: 'User Talk',
+            4: 'Wikipedia',
+            5: 'Wikipedia Talk',
+            6: 'File',
+            7: 'File Talk',
+            8: 'MediaWiki',
+            9: 'MediaWiki Talk',
+            10: 'Template',
+            11: 'Template Talk',
+            12: 'Help',
+            13: 'Help Talk',
+            14: 'Category',
+            15: 'Category Talk',
+            100: 'Portal',
+            101: 'Portal Talk',
+            108: 'Book',
+            109: 'Book Talk'
+        };
+
+        const CHART_COLORS = {
+            namespace: ['#58a6ff', '#238636', '#a371f7', '#f0883e', '#3fb950', '#d2a8ff', '#79c0ff', '#ff7b72', '#a5d6ff', '#7ee787'],
+            edittype: ['#3fb950', '#58a6ff', '#f0883e', '#f85149', '#8b949e'],
+            minor: ['#3fb950', '#f0883e'],
+            bot: ['#a371f7', '#58a6ff']
         };
         const namespaceCounts = new Map();
 
