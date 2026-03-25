@@ -428,69 +428,42 @@
         let currentMode = 'basic';
 
         // Stats tracking
-        const namespaceCounts = new Map();
-        const editTypeCounts = { new: 0, edit: 0, move: 0, delete: 0, other: 0 };
-        const minorCounts = { minor: 0, major: 0 };
-        const botCounts = { bot: 0, human: 0 };
-
-        const NAMESPACE_NAMES = {
-            0: 'Article',
-            1: 'Talk',
-            2: 'User',
-            3: 'User Talk',
-            4: 'Wikipedia',
-            5: 'Wikipedia Talk',
-            6: 'File',
-            7: 'File Talk',
-            8: 'MediaWiki',
-            9: 'MediaWiki Talk',
-            10: 'Template',
-            11: 'Template Talk',
-            12: 'Help',
-            13: 'Help Talk',
-            14: 'Category',
-            15: 'Category Talk',
-            100: 'Portal',
-            101: 'Portal Talk',
-            108: 'Book',
-            109: 'Book Talk'
+        const commonsStats = { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, bot: { bot: 0, human: 0 } };
+        const wikidataStats = { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, bot: { bot: 0, human: 0 } };
+        const wikipediaStats = { 
+            en: { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } },
+            // ... would ideally be populated dynamically
         };
 
-        const CHART_COLORS = {
-            namespace: ['#58a6ff', '#238636', '#a371f7', '#f0883e', '#3fb950', '#d2a8ff', '#79c0ff', '#ff7b72', '#a5d6ff', '#7ee787'],
-            edittype: ['#3fb950', '#58a6ff', '#f0883e', '#f85149', '#8b949e'],
-            minor: ['#3fb950', '#f0883e'],
-            bot: ['#a371f7', '#58a6ff']
-        };
+        function updateStats() {
+            // Get selected wiki
+            const wikiSelect = document.getElementById('wiki-select');
+            const lang = wikiSelect.value;
+            document.getElementById('wikipedia-title').textContent = 
+                (wikiSelect.options[wikiSelect.selectedIndex].text) + ' Wikipedia';
 
-        function getProjectAndLang(serverName) {
-            if (!serverName) return { project: 'Other', lang: null, hasLangEdition: false };
-            
-            const parts = serverName.split('.');
-            if (parts.length < 2) return { project: 'Other', lang: null, hasLangEdition: false };
-            
-            const lang = parts[0];
-            const project = parts[1];
-            
-            const projectNames = {
-                'wikipedia': 'Wikipedia',
-                'wikimedia': 'Commons',
-                'wiktionary': 'Wiktionary',
-                'wikiquote': 'Wikiquote',
-                'wikibooks': 'Wikibooks',
-                'wikisource': 'Wikisource',
-                'wikinews': 'Wikinews',
-                'wikiversity': 'Wikiversity',
-                'wikivoyage': 'Wikivoyage',
-                'wikidata': 'Wikidata'
-            };
-            
-            const projectName = projectNames[project] || project;
-            
-            const noLangProjects = ['commons', 'wikidata', 'wikimedia'];
-            const hasLangEdition = !noLangProjects.includes(lang);
-            
-            return { project: projectName, lang, hasLangEdition };
+            // Render charts
+            renderDonut('commons-edittype', null, mapToData(commonsStats.editType), CHART_COLORS.edittype, getTotal(commonsStats.editType));
+            renderDonut('commons-bot', null, mapToData(commonsStats.bot), CHART_COLORS.bot, getTotal(commonsStats.bot));
+
+            renderDonut('wikidata-edittype', null, mapToData(wikidataStats.editType), CHART_COLORS.edittype, getTotal(wikidataStats.editType));
+            renderDonut('wikidata-bot', null, mapToData(wikidataStats.bot), CHART_COLORS.bot, getTotal(wikidataStats.bot));
+
+            const wiki = wikipediaStats[lang] || { editType: { edit: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } };
+            renderDonut('wiki-edittype', null, mapToData(wiki.editType), CHART_COLORS.edittype, getTotal(wiki.editType));
+            renderDonut('wiki-namespace', null, mapToNamespaceData(wiki.namespace), CHART_COLORS.namespace, getTotal(wiki.namespace));
+            renderDonut('wiki-bot', null, mapToData(wiki.bot), CHART_COLORS.bot, getTotal(wiki.bot));
+        }
+
+        function mapToData(obj) {
+            return Object.entries(obj).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }));
+        }
+        function mapToNamespaceData(map) {
+            return Array.from(map.entries()).map(([ns, value]) => ({ name: NAMESPACE_NAMES[ns] || `NS ${ns}`, value }));
+        }
+        function getTotal(obj) {
+            if (obj instanceof Map) return Array.from(obj.values()).reduce((a, b) => a + b, 0);
+            return Object.values(obj).reduce((a, b) => a + b, 0);
         }
 
         function getProjectType(serverName) {
@@ -937,6 +910,7 @@
             }
         }
 
+        document.getElementById('wiki-select').addEventListener('change', updateStats);
         document.querySelectorAll('.mode-btn').forEach(btn => {
             btn.addEventListener('click', () => switchMode(btn.dataset.mode));
         });
@@ -945,44 +919,40 @@
         function processEvent(data) {
             totalEvents++;
 
-            // Namespace stats
-            const namespace = data.namespace ?? 0;
-            namespaceCounts.set(namespace, (namespaceCounts.get(namespace) || 0) + 1);
-
-            // Edit type stats
-            if (data.new === true || data.new === 'true') {
-                editTypeCounts.new++;
-            } else if (data.type === 'move' || data.moved) {
-                editTypeCounts.move++;
-            } else if (data.type === 'delete' || data.deleted) {
-                editTypeCounts.delete++;
-            } else if (data.type === 'edit') {
-                editTypeCounts.edit++;
-            } else {
-                editTypeCounts.edit++;
-            }
-
-            // Minor vs Major stats
-            if (data.minor === true || data.minor === 'true') {
-                minorCounts.minor++;
-            } else {
-                minorCounts.major++;
-            }
-
-            // Bot vs Human stats
-            const isBot = data.bot === true || data.bot === 'true' || 
-                          data.user_is_bot === true || 
-                          (data.tags && data.tags.includes('bot'));
-            if (isBot) {
-                botCounts.bot++;
-            } else {
-                botCounts.human++;
-            }
-
             const serverName = data.server_name || data.meta?.domain || 'unknown';
+            const { project, lang } = getProjectAndLang(serverName);
+
+            // Determine target stats object
+            let target;
+            if (project === 'Commons') target = commonsStats;
+            else if (project === 'Wikidata') target = wikidataStats;
+            else if (project === 'Wikipedia') {
+                if (!wikipediaStats[lang]) wikipediaStats[lang] = { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } };
+                target = wikipediaStats[lang];
+            }
+
+            if (target) {
+                // Update Edit Type
+                if (data.new === true || data.new === 'true') target.editType.new++;
+                else if (data.type === 'move' || data.moved) target.editType.move++;
+                else if (data.type === 'delete' || data.deleted) target.editType.delete++;
+                else target.editType.edit++;
+
+                // Update Bot/Human
+                const isBot = data.bot === true || data.bot === 'true' || data.user_is_bot === true || (data.tags && data.tags.includes('bot'));
+                if (isBot) target.bot.bot++;
+                else target.bot.human++;
+
+                // Update Namespace (Wikipedia only)
+                if (project === 'Wikipedia') {
+                    const ns = data.namespace ?? 0;
+                    target.namespace.set(ns, (target.namespace.get(ns) || 0) + 1);
+                }
+            }
+
+            // ... (Continue with sourceCounts, UI updates)
             const projectType = getProjectType(serverName);
             const displayName = getDisplayName(serverName);
-
             if (!sourceCounts.has(serverName)) {
                 sourceCounts.set(serverName, {
                     count: 0,
@@ -990,26 +960,13 @@
                     display: displayName
                 });
             }
-
             sourceCounts.get(serverName).count++;
-
-            const time = data.timestamp || Date.now();
-            const title = data.title || '';
-            addRecentEvent(time, serverName, title);
-
+            
+            addRecentEvent(data.timestamp || Date.now(), serverName, data.title || '');
             updateCounters();
             
-            // Limit sunburst re-renders if a zoom is active, or re-render intelligently
-            if (currentMode === 'sunburst') {
-                // To prevent losing the zoom level constantly, we only update if not zoomed in.
-                // A better approach is to store the "current focus" node.
-                // For this prototype, we'll throttle or skip updates if user is interacting.
-                updateSunburst(); 
-            }
-            
-            if (currentMode === 'stats') {
-                updateStats();
-            }
+            if (currentMode === 'sunburst') updateSunburst();
+            if (currentMode === 'stats') updateStats();
         }
 
         const source = new EventSource(EVENTSTREAM_URL);
