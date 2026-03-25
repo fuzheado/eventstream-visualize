@@ -254,16 +254,26 @@
             display: block;
         }
 
-        .donut-grid {
+        .stats-controls {
+            margin-bottom: 20px;
+            color: var(--text-dim);
+        }
+
+        .stats-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 20px;
         }
 
-        @media (max-width: 1200px) {
-            .donut-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
+        .stats-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .stats-column h3 {
+            color: var(--text);
+            margin-bottom: 10px;
         }
 
         .donut-card {
@@ -375,26 +385,38 @@
     </div>
 
     <div class="stats-container" id="stats-view">
-        <div class="donut-grid">
-            <div class="donut-card">
-                <div class="donut-title">Namespace Breakdown</div>
-                <svg class="donut-svg" id="namespace-chart"></svg>
-                <div class="donut-legend" id="namespace-legend"></div>
+        <div class="stats-controls">
+            <label for="wiki-select">Select Wikipedia Language:</label>
+            <select id="wiki-select">
+                <option value="en" selected>English</option>
+                <option value="de">German</option>
+                <option value="fr">French</option>
+                <option value="es">Spanish</option>
+                <option value="it">Italian</option>
+                <option value="ru">Russian</option>
+                <option value="ja">Japanese</option>
+                <option value="zh">Chinese</option>
+            </select>
+        </div>
+        <div class="stats-grid">
+            <!-- Commons Column -->
+            <div class="stats-column">
+                <h3>Commons</h3>
+                <div class="donut-card"><div class="donut-title">Edit Type</div><svg class="donut-svg" id="commons-edittype"></svg></div>
+                <div class="donut-card"><div class="donut-title">Bot vs Human</div><svg class="donut-svg" id="commons-bot"></svg></div>
             </div>
-            <div class="donut-card">
-                <div class="donut-title">Edit Type</div>
-                <svg class="donut-svg" id="edittype-chart"></svg>
-                <div class="donut-legend" id="edittype-legend"></div>
+            <!-- Wikidata Column -->
+            <div class="stats-column">
+                <h3>Wikidata</h3>
+                <div class="donut-card"><div class="donut-title">Edit Type</div><svg class="donut-svg" id="wikidata-edittype"></svg></div>
+                <div class="donut-card"><div class="donut-title">Bot vs Human</div><svg class="donut-svg" id="wikidata-bot"></svg></div>
             </div>
-            <div class="donut-card">
-                <div class="donut-title">Minor vs Major</div>
-                <svg class="donut-svg" id="minor-chart"></svg>
-                <div class="donut-legend" id="minor-legend"></div>
-            </div>
-            <div class="donut-card">
-                <div class="donut-title">Bot vs Human</div>
-                <svg class="donut-svg" id="bot-chart"></svg>
-                <div class="donut-legend" id="bot-legend"></div>
+            <!-- Wikipedia Column -->
+            <div class="stats-column">
+                <h3 id="wikipedia-title">English Wikipedia</h3>
+                <div class="donut-card"><div class="donut-title">Edit Type</div><svg class="donut-svg" id="wiki-edittype"></svg></div>
+                <div class="donut-card"><div class="donut-title">Namespace</div><svg class="donut-svg" id="wiki-namespace"></svg></div>
+                <div class="donut-card"><div class="donut-title">Bot vs Human</div><svg class="donut-svg" id="wiki-bot"></svg></div>
             </div>
         </div>
     </div>
@@ -427,12 +449,39 @@
         let totalEvents = 0;
         let currentMode = 'basic';
 
-        // Stats tracking
+        function getProjectAndLang(serverName) {
+            if (!serverName) return { project: 'Other', lang: null, hasLangEdition: false };
+            
+            const parts = serverName.split('.');
+            if (parts.length < 2) return { project: 'Other', lang: null, hasLangEdition: false };
+            
+            const lang = parts[0];
+            const project = parts[1];
+            
+            const projectNames = {
+                'wikipedia': 'Wikipedia',
+                'wikimedia': 'Commons',
+                'wiktionary': 'Wiktionary',
+                'wikiquote': 'Wikiquote',
+                'wikibooks': 'Wikibooks',
+                'wikisource': 'Wikisource',
+                'wikinews': 'Wikinews',
+                'wikiversity': 'Wikiversity',
+                'wikivoyage': 'Wikivoyage',
+                'wikidata': 'Wikidata'
+            };
+            
+            const projectName = projectNames[project] || project;
+            
+            const noLangProjects = ['commons', 'wikidata', 'wikimedia'];
+            const hasLangEdition = !noLangProjects.includes(lang);
+            
+            return { project: projectName, lang, hasLangEdition };
+        }
         const commonsStats = { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, bot: { bot: 0, human: 0 } };
         const wikidataStats = { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, bot: { bot: 0, human: 0 } };
         const wikipediaStats = { 
-            en: { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } },
-            // ... would ideally be populated dynamically
+            en: { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } }
         };
 
         function updateStats() {
@@ -897,9 +946,14 @@
             }
         }
 
-        document.getElementById('wiki-select').addEventListener('change', updateStats);
-        document.querySelectorAll('.mode-btn').forEach(btn => {
-            btn.addEventListener('click', () => switchMode(btn.dataset.mode));
+        document.addEventListener('DOMContentLoaded', () => {
+            const wikiSelect = document.getElementById('wiki-select');
+            if (wikiSelect) {
+                wikiSelect.addEventListener('change', updateStats);
+            }
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.addEventListener('click', () => switchMode(btn.dataset.mode));
+            });
         });
 
         // Process incoming event data
@@ -910,7 +964,7 @@
             const { project, lang } = getProjectAndLang(serverName);
 
             // Determine target stats object
-            let target;
+            let target = null;
             if (project === 'Commons') target = commonsStats;
             else if (project === 'Wikidata') target = wikidataStats;
             else if (project === 'Wikipedia') {
