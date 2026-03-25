@@ -869,49 +869,36 @@
 
         // ==================== DONUT CHARTS ====================
         function updateStats() {
-            updateNamespaceChart();
-            updateEditTypeChart();
-            updateMinorChart();
-            updateBotChart();
+            // Get selected wiki
+            const wikiSelect = document.getElementById('wiki-select');
+            const lang = wikiSelect.value;
+            const wikiTitle = wikiSelect.options[wikiSelect.selectedIndex].text;
+            document.getElementById('wikipedia-title').textContent = wikiTitle + ' Wikipedia';
+
+            // Render Commons
+            renderDonut('commons-edittype', null, mapToData(commonsStats.editType), CHART_COLORS.edittype, getTotal(commonsStats.editType));
+            renderDonut('commons-bot', null, mapToData(commonsStats.bot), CHART_COLORS.bot, getTotal(commonsStats.bot));
+
+            // Render Wikidata
+            renderDonut('wikidata-edittype', null, mapToData(wikidataStats.editType), CHART_COLORS.edittype, getTotal(wikidataStats.editType));
+            renderDonut('wikidata-bot', null, mapToData(wikidataStats.bot), CHART_COLORS.bot, getTotal(wikidataStats.bot));
+
+            // Render Wikipedia
+            const wiki = wikipediaStats[lang] || { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } };
+            renderDonut('wiki-edittype', null, mapToData(wiki.editType), CHART_COLORS.edittype, getTotal(wiki.editType));
+            renderDonut('wiki-namespace', null, mapToNamespaceData(wiki.namespace), CHART_COLORS.namespace, getTotal(wiki.namespace));
+            renderDonut('wiki-bot', null, mapToData(wiki.bot), CHART_COLORS.bot, getTotal(wiki.bot));
         }
 
-        function updateNamespaceChart() {
-            const data = Array.from(namespaceCounts.entries())
-                .map(([ns, count]) => ({ name: NAMESPACE_NAMES[ns] || `NS ${ns}`, value: count }))
-                .sort((a, b) => b.value - a.value)
-                .slice(0, 10);
-            
-            renderDonut('namespace-chart', 'namespace-legend', data, CHART_COLORS.namespace, totalEvents);
+        function mapToData(obj) {
+            return Object.entries(obj).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }));
         }
-
-        function updateEditTypeChart() {
-            const data = [
-                { name: 'New Page', value: editTypeCounts.new },
-                { name: 'Edit', value: editTypeCounts.edit },
-                { name: 'Move', value: editTypeCounts.move },
-                { name: 'Delete', value: editTypeCounts.delete },
-                { name: 'Other', value: editTypeCounts.other }
-            ].filter(d => d.value > 0);
-            
-            renderDonut('edittype-chart', 'edittype-legend', data, CHART_COLORS.edittype, totalEvents);
+        function mapToNamespaceData(map) {
+            return Array.from(map.entries()).map(([ns, value]) => ({ name: NAMESPACE_NAMES[ns] || `NS ${ns}`, value }));
         }
-
-        function updateMinorChart() {
-            const data = [
-                { name: 'Minor', value: minorCounts.minor },
-                { name: 'Major', value: minorCounts.major }
-            ];
-            
-            renderDonut('minor-chart', 'minor-legend', data, CHART_COLORS.minor, totalEvents);
-        }
-
-        function updateBotChart() {
-            const data = [
-                { name: 'Bot', value: botCounts.bot },
-                { name: 'Human', value: botCounts.human }
-            ];
-            
-            renderDonut('bot-chart', 'bot-legend', data, CHART_COLORS.bot, totalEvents);
+        function getTotal(obj) {
+            if (obj instanceof Map) return Array.from(obj.values()).reduce((a, b) => a + b, 0);
+            return Object.values(obj).reduce((a, b) => a + b, 0);
         }
 
         function renderDonut(svgId, legendId, data, colors, total) {
@@ -924,7 +911,6 @@
             
             if (data.length === 0 || total === 0) {
                 svgEl.innerHTML = '<text x="90" y="95" text-anchor="middle" fill="#8b949e" font-size="12">No data</text>';
-                if (legendId) document.getElementById(legendId).innerHTML = '';
                 return;
             }
 
