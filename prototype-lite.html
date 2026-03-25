@@ -402,21 +402,49 @@
             <!-- Commons Column -->
             <div class="stats-column">
                 <h3>Commons</h3>
-                <div class="donut-card"><div class="donut-title">Edit Type</div><svg class="donut-svg" id="commons-edittype"></svg></div>
-                <div class="donut-card"><div class="donut-title">Bot vs Human</div><svg class="donut-svg" id="commons-bot"></svg></div>
+                <div class="donut-card">
+                    <div class="donut-title">Edit Type</div>
+                    <svg class="donut-svg" id="commons-edittype"></svg>
+                    <div class="donut-legend" id="commons-edittype-legend"></div>
+                </div>
+                <div class="donut-card">
+                    <div class="donut-title">Bot vs Human</div>
+                    <svg class="donut-svg" id="commons-bot"></svg>
+                    <div class="donut-legend" id="commons-bot-legend"></div>
+                </div>
             </div>
             <!-- Wikidata Column -->
             <div class="stats-column">
                 <h3>Wikidata</h3>
-                <div class="donut-card"><div class="donut-title">Edit Type</div><svg class="donut-svg" id="wikidata-edittype"></svg></div>
-                <div class="donut-card"><div class="donut-title">Bot vs Human</div><svg class="donut-svg" id="wikidata-bot"></svg></div>
+                <div class="donut-card">
+                    <div class="donut-title">Edit Type</div>
+                    <svg class="donut-svg" id="wikidata-edittype"></svg>
+                    <div class="donut-legend" id="wikidata-edittype-legend"></div>
+                </div>
+                <div class="donut-card">
+                    <div class="donut-title">Bot vs Human</div>
+                    <svg class="donut-svg" id="wikidata-bot"></svg>
+                    <div class="donut-legend" id="wikidata-bot-legend"></div>
+                </div>
             </div>
             <!-- Wikipedia Column -->
             <div class="stats-column">
                 <h3 id="wikipedia-title">English Wikipedia</h3>
-                <div class="donut-card"><div class="donut-title">Edit Type</div><svg class="donut-svg" id="wiki-edittype"></svg></div>
-                <div class="donut-card"><div class="donut-title">Namespace</div><svg class="donut-svg" id="wiki-namespace"></svg></div>
-                <div class="donut-card"><div class="donut-title">Bot vs Human</div><svg class="donut-svg" id="wiki-bot"></svg></div>
+                <div class="donut-card">
+                    <div class="donut-title">Edit Type</div>
+                    <svg class="donut-svg" id="wiki-edittype"></svg>
+                    <div class="donut-legend" id="wiki-edittype-legend"></div>
+                </div>
+                <div class="donut-card">
+                    <div class="donut-title">Namespace</div>
+                    <svg class="donut-svg" id="wiki-namespace"></svg>
+                    <div class="donut-legend" id="wiki-namespace-legend"></div>
+                </div>
+                <div class="donut-card">
+                    <div class="donut-title">Bot vs Human</div>
+                    <svg class="donut-svg" id="wiki-bot"></svg>
+                    <div class="donut-legend" id="wiki-bot-legend"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -479,10 +507,10 @@
             return { project: projectName, lang, hasLangEdition };
         }
         // Stats tracking
-        const commonsStats = { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, bot: { bot: 0, human: 0 } };
-        const wikidataStats = { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, bot: { bot: 0, human: 0 } };
+        const commonsStats = { editType: { edit: 0, new: 0, categorize: 0, log: 0 }, bot: { bot: 0, human: 0 } };
+        const wikidataStats = { editType: { edit: 0, new: 0, categorize: 0, log: 0 }, bot: { bot: 0, human: 0 } };
         const wikipediaStats = { 
-            en: { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } }
+            en: { editType: { edit: 0, new: 0, categorize: 0, log: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } }
         };
         const minorCounts = { minor: 0, major: 0 };
         const namespaceCounts = new Map();
@@ -846,18 +874,18 @@
             document.getElementById('wikipedia-title').textContent = wikiTitle + ' Wikipedia';
 
             // Render Commons
-            renderDonut('commons-edittype', null, mapToData(commonsStats.editType), CHART_COLORS.edittype, getTotal(commonsStats.editType));
-            renderDonut('commons-bot', null, mapToData(commonsStats.bot), CHART_COLORS.bot, getTotal(commonsStats.bot));
+            renderDonut('commons-edittype', 'commons-edittype-legend', mapToData(commonsStats.editType), CHART_COLORS.edittype, getTotal(commonsStats.editType));
+            renderDonut('commons-bot', 'commons-bot-legend', mapToData(commonsStats.bot), CHART_COLORS.bot, getTotal(commonsStats.bot));
 
             // Render Wikidata
-            renderDonut('wikidata-edittype', null, mapToData(wikidataStats.editType), CHART_COLORS.edittype, getTotal(wikidataStats.editType));
-            renderDonut('wikidata-bot', null, mapToData(wikidataStats.bot), CHART_COLORS.bot, getTotal(wikidataStats.bot));
+            renderDonut('wikidata-edittype', 'wikidata-edittype-legend', mapToData(wikidataStats.editType), CHART_COLORS.edittype, getTotal(wikidataStats.editType));
+            renderDonut('wikidata-bot', 'wikidata-bot-legend', mapToData(wikidataStats.bot), CHART_COLORS.bot, getTotal(wikidataStats.bot));
 
             // Render Wikipedia
-            const wiki = wikipediaStats[lang] || { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } };
-            renderDonut('wiki-edittype', null, mapToData(wiki.editType), CHART_COLORS.edittype, getTotal(wiki.editType));
-            renderDonut('wiki-namespace', null, mapToNamespaceData(wiki.namespace), CHART_COLORS.namespace, getTotal(wiki.namespace));
-            renderDonut('wiki-bot', null, mapToData(wiki.bot), CHART_COLORS.bot, getTotal(wiki.bot));
+            const wiki = wikipediaStats[lang] || { editType: { edit: 0, new: 0, categorize: 0, log: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } };
+            renderDonut('wiki-edittype', 'wiki-edittype-legend', mapToData(wiki.editType), CHART_COLORS.edittype, getTotal(wiki.editType));
+            renderDonut('wiki-namespace', 'wiki-namespace-legend', mapToNamespaceData(wiki.namespace), CHART_COLORS.namespace, getTotal(wiki.namespace));
+            renderDonut('wiki-bot', 'wiki-bot-legend', mapToData(wiki.bot), CHART_COLORS.bot, getTotal(wiki.bot));
         }
 
         function mapToData(obj) {
@@ -922,6 +950,22 @@
                 .attr('fill', '#8b949e')
                 .attr('font-size', '10px')
                 .text('events');
+
+            if (legendId) {
+                const legend = document.getElementById(legendId);
+                legend.innerHTML = data.map((d, i) => {
+                    const percent = ((d.value / total) * 100).toFixed(1);
+                    return `
+                        <div class="legend-row">
+                            <div class="legend-row-left">
+                                <div class="legend-dot" style="background: ${colors[i % colors.length]}"></div>
+                                <span class="legend-label">${d.name}</span>
+                            </div>
+                            <span class="legend-value">${formatNumber(d.value)} (${percent}%)</span>
+                        </div>
+                    `;
+                }).join('');
+            }
         }
 
         function updateLegend() {
@@ -987,16 +1031,17 @@
             if (project === 'Commons') target = commonsStats;
             else if (project === 'Wikidata') target = wikidataStats;
             else if (project === 'Wikipedia') {
-                if (!wikipediaStats[lang]) wikipediaStats[lang] = { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } };
+                if (!wikipediaStats[lang]) wikipediaStats[lang] = { editType: { edit: 0, new: 0, categorize: 0, log: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } };
                 target = wikipediaStats[lang];
             }
 
             if (target) {
                 // Update Edit Type
-                if (data.new === true || data.new === 'true') target.editType.new++;
-                else if (data.type === 'move' || data.moved) target.editType.move++;
-                else if (data.type === 'delete' || data.deleted) target.editType.delete++;
-                else target.editType.edit++;
+                if (data.type === 'edit') target.editType.edit++;
+                else if (data.type === 'new') target.editType.new++;
+                else if (data.type === 'categorize') target.editType.categorize++;
+                else if (data.type === 'log') target.editType.log++;
+                else target.editType.edit++; // fallback
 
                 // Update Bot/Human
                 const isBot = data.bot === true || data.bot === 'true' || data.user_is_bot === true || (data.tags && data.tags.includes('bot'));
