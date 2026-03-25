@@ -16,14 +16,16 @@ To provide a fast, zero-dependency, and instantly accessible dashboard that offe
 
 ### 1. Multi-Mode Visualization
 *   **Basic Mode:** Grid layout showing real-time event counters for each Wikimedia project and language edition (e.g., "English Wikipedia", "Wikimedia Commons").
-*   **Sunburst Mode:** Radial hierarchy visualization:
+*   **Sunburst Mode:** Radial hierarchy visualization (non-zoomable):
     *   **Inner Ring:** Project Type (Wikipedia, Wiktionary, etc.)
     *   **Outer Ring:** Language Edition (e.g., "en", "de") or specific project (e.g., "Commons", "Wikidata").
-*   **Stats Mode:** Analytical donut charts displaying:
-    *   **Namespace Breakdown:** Edit distribution by namespace (Article, Talk, User, etc.).
-    *   **Edit Type Distribution:** New pages, edits, moves, deletions.
-    *   **Minor vs Major Edits:** Ratio of small vs significant changes.
-    *   **Bot vs Human Activity:** Ratio of automated vs manual edits.
+*   **Stats Mode:** Analytical donut charts displaying granular activity filtered by project:
+    *   **Three Column Layout:** Separated into `Commons`, `Wikidata`, and `Wikipedia`.
+    *   **Language Selector:** A dropdown menu allows users to filter the `Wikipedia` column by specific language editions (defaulting to English).
+    *   **Visualizations per Column:**
+        *   **Edit Type Distribution:** Edit, New, Categorize, Log (Available on all 3 columns).
+        *   **Bot vs Human Activity:** Ratio of automated vs manual edits (Available on all 3 columns).
+        *   **Namespace Breakdown:** Edit distribution by namespace (Article, Talk, User, etc.) (Available *only* on the Wikipedia column).
 
 ### 2. Real-Time Data Processing
 *   Connects directly to the Wikimedia `recentchange` EventStream.
@@ -41,12 +43,14 @@ To provide a fast, zero-dependency, and instantly accessible dashboard that offe
 
 ### Data Flow
 1.  **Event Stream:** WebSocket connection to `stream.wikimedia.org`.
-2.  **Processing:** Each incoming event is parsed, and metrics (namespace, type, minor/major flag, bot flag) are updated in-memory.
+2.  **Processing:** Each incoming event is parsed, and metrics (namespace, type, minor/major flag, bot flag) are updated in-memory into specific nested structures mapped to `commonsStats`, `wikidataStats`, and `wikipediaStats[lang]`.
 3.  **Visualization:**
     *   Counters update DOM elements in real-time.
-    *   Sunburst/Stats views update their internal data structures and re-render on demand (when the user switches to that mode).
+    *   Sunburst/Stats views update their internal data structures and re-render on demand or dynamically via `requestAnimationFrame` style updates without destroying interactions.
 
 ---
 
 ## File Structure
 *   `prototype-lite.html`: Main application file.
+*   `PRDlite.md`: This document.
+*   `PROGRESS_REPORTlite.md`: Current project status.
