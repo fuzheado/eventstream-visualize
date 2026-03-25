@@ -456,10 +456,10 @@
             
             return { project: projectName, lang, hasLangEdition };
         }
+        const commonsStats = { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, bot: { bot: 0, human: 0 } };
         const wikidataStats = { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, bot: { bot: 0, human: 0 } };
         const wikipediaStats = { 
-            en: { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } },
-            // ... would ideally be populated dynamically
+            en: { editType: { new: 0, edit: 0, move: 0, delete: 0, other: 0 }, namespace: new Map(), bot: { bot: 0, human: 0 } }
         };
 
         function updateStats() {
