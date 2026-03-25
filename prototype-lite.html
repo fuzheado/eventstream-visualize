@@ -119,8 +119,6 @@
         .counter-card.wikivoyage { border-left: 3px solid #336600; }
         .counter-card.wikidata { border-left: 3px solid #006699; }
         .counter-card.other { border-left: 3px solid #888; }
-        .counter-card.wikidata { border-left: 3px solid #006699; }
-        .counter-card.other { border-left: 3px solid #888; }
 
         .counter-name {
             font-size: 0.85em;
@@ -241,6 +239,89 @@
             color: var(--accent);
         }
 
+        /* Stats View */
+        .stats-container {
+            display: none;
+            padding: 20px;
+        }
+
+        .stats-container.active {
+            display: block;
+        }
+
+        .donut-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 1200px) {
+            .donut-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .donut-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .donut-title {
+            font-size: 0.9em;
+            font-weight: 600;
+            color: var(--text-dim);
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .donut-svg {
+            width: 180px;
+            height: 180px;
+        }
+
+        .donut-legend {
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .legend-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.75em;
+        }
+
+        .legend-row-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .legend-label {
+            color: var(--text);
+        }
+
+        .legend-value {
+            color: var(--accent);
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -268,6 +349,7 @@
         <div class="mode-toggle">
             <button class="mode-btn active" data-mode="basic">Basic</button>
             <button class="mode-btn" data-mode="sunburst">Sunburst</button>
+            <button class="mode-btn" data-mode="stats">Stats</button>
         </div>
     </header>
 
@@ -285,6 +367,31 @@
     <div class="sunburst-container" id="sunburst-view">
         <svg id="sunburst-svg"></svg>
         <div class="sunburst-legend" id="sunburst-legend"></div>
+    </div>
+
+    <div class="stats-container" id="stats-view">
+        <div class="donut-grid">
+            <div class="donut-card">
+                <div class="donut-title">Namespace Breakdown</div>
+                <svg class="donut-svg" id="namespace-chart"></svg>
+                <div class="donut-legend" id="namespace-legend"></div>
+            </div>
+            <div class="donut-card">
+                <div class="donut-title">Edit Type</div>
+                <svg class="donut-svg" id="edittype-chart"></svg>
+                <div class="donut-legend" id="edittype-legend"></div>
+            </div>
+            <div class="donut-card">
+                <div class="donut-title">Minor vs Major</div>
+                <svg class="donut-svg" id="minor-chart"></svg>
+                <div class="donut-legend" id="minor-legend"></div>
+            </div>
+            <div class="donut-card">
+                <div class="donut-title">Bot vs Human</div>
+                <svg class="donut-svg" id="bot-chart"></svg>
+                <div class="donut-legend" id="bot-legend"></div>
+            </div>
+        </div>
     </div>
 
     <div class="tooltip" id="tooltip"></div>
@@ -314,6 +421,42 @@
         const MAX_RECENT = 20;
         let totalEvents = 0;
         let currentMode = 'basic';
+
+        // Stats tracking
+        const namespaceCounts = new Map();
+        const editTypeCounts = { new: 0, edit: 0, move: 0, delete: 0, other: 0 };
+        const minorCounts = { minor: 0, major: 0 };
+        const botCounts = { bot: 0, human: 0 };
+
+        const NAMESPACE_NAMES = {
+            0: 'Article',
+            1: 'Talk',
+            2: 'User',
+            3: 'User Talk',
+            4: 'Wikipedia',
+            5: 'Wikipedia Talk',
+            6: 'File',
+            7: 'File Talk',
+            8: 'MediaWiki',
+            9: 'MediaWiki Talk',
+            10: 'Template',
+            11: 'Template Talk',
+            12: 'Help',
+            13: 'Help Talk',
+            14: 'Category',
+            15: 'Category Talk',
+            100: 'Portal',
+            101: 'Portal Talk',
+            108: 'Book',
+            109: 'Book Talk'
+        };
+
+        const CHART_COLORS = {
+            namespace: ['#58a6ff', '#238636', '#a371f7', '#f0883e', '#3fb950', '#d2a8ff', '#79c0ff', '#ff7b72', '#a5d6ff', '#7ee787'],
+            edittype: ['#3fb950', '#58a6ff', '#f0883e', '#f85149', '#8b949e'],
+            minor: ['#3fb950', '#f0883e'],
+            bot: ['#a371f7', '#58a6ff']
+        };
 
         function getProjectAndLang(serverName) {
             if (!serverName) return { project: 'Other', lang: null, hasLangEdition: false };
@@ -628,6 +771,120 @@
             updateLegend();
         }
 
+        // ==================== DONUT CHARTS ====================
+        function updateStats() {
+            updateNamespaceChart();
+            updateEditTypeChart();
+            updateMinorChart();
+            updateBotChart();
+        }
+
+        function updateNamespaceChart() {
+            const data = Array.from(namespaceCounts.entries())
+                .map(([ns, count]) => ({ name: NAMESPACE_NAMES[ns] || `NS ${ns}`, value: count }))
+                .sort((a, b) => b.value - a.value)
+                .slice(0, 10);
+            
+            renderDonut('namespace-chart', 'namespace-legend', data, CHART_COLORS.namespace, totalEvents);
+        }
+
+        function updateEditTypeChart() {
+            const data = [
+                { name: 'New Page', value: editTypeCounts.new },
+                { name: 'Edit', value: editTypeCounts.edit },
+                { name: 'Move', value: editTypeCounts.move },
+                { name: 'Delete', value: editTypeCounts.delete },
+                { name: 'Other', value: editTypeCounts.other }
+            ].filter(d => d.value > 0);
+            
+            renderDonut('edittype-chart', 'edittype-legend', data, CHART_COLORS.edittype, totalEvents);
+        }
+
+        function updateMinorChart() {
+            const data = [
+                { name: 'Minor', value: minorCounts.minor },
+                { name: 'Major', value: minorCounts.major }
+            ];
+            
+            renderDonut('minor-chart', 'minor-legend', data, CHART_COLORS.minor, totalEvents);
+        }
+
+        function updateBotChart() {
+            const data = [
+                { name: 'Bot', value: botCounts.bot },
+                { name: 'Human', value: botCounts.human }
+            ];
+            
+            renderDonut('bot-chart', 'bot-legend', data, CHART_COLORS.bot, totalEvents);
+        }
+
+        function renderDonut(svgId, legendId, data, colors, total) {
+            const svgEl = document.getElementById(svgId);
+            const width = 180, height = 180, radius = Math.min(width, height) / 2;
+            const innerRadius = radius * 0.6;
+
+            svgEl.innerHTML = '';
+            
+            if (data.length === 0 || total === 0) {
+                svgEl.innerHTML = '<text x="90" y="95" text-anchor="middle" fill="#8b949e" font-size="12">No data</text>';
+                document.getElementById(legendId).innerHTML = '';
+                return;
+            }
+
+            const svg = d3.select(`#${svgId}`)
+                .attr('viewBox', `0 0 ${width} ${height}`);
+
+            const g = svg.append('g')
+                .attr('transform', `translate(${width/2},${height/2})`);
+
+            const pie = d3.pie()
+                .value(d => d.value)
+                .sort(null);
+
+            const arc = d3.arc()
+                .innerRadius(innerRadius)
+                .outerRadius(radius - 5);
+
+            const arcs = g.selectAll('path')
+                .data(pie(data));
+
+            arcs.enter()
+                .append('path')
+                .attr('d', arc)
+                .attr('fill', (d, i) => colors[i % colors.length])
+                .attr('stroke', '#0d1117')
+                .attr('stroke-width', 2);
+
+            g.append('text')
+                .attr('text-anchor', 'middle')
+                .attr('dy', '-0.2em')
+                .attr('fill', '#e6edf3')
+                .attr('font-size', '24px')
+                .attr('font-weight', 'bold')
+                .text(formatNumber(total));
+
+            g.append('text')
+                .attr('text-anchor', 'middle')
+                .attr('dy', '1.2em')
+                .attr('fill', '#8b949e')
+                .attr('font-size', '10px')
+                .text('events');
+
+            const legend = document.getElementById(legendId);
+            legend.innerHTML = data.map((d, i) => {
+                const percent = ((d.value / total) * 100).toFixed(1);
+                return `
+                    <div class="legend-row">
+                        <div class="legend-row-left">
+                            <div class="legend-dot" style="background: ${colors[i % colors.length]}"></div>
+                            <span class="legend-label">${d.name}</span>
+                        </div>
+                        <span class="legend-value">${formatNumber(d.value)} (${percent}%)</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
         function updateLegend() {
             const legend = document.getElementById('sunburst-legend');
             const hierarchyData = buildHierarchyData();
@@ -652,17 +909,20 @@
 
             const basicView = document.getElementById('basic-view');
             const sunburstView = document.getElementById('sunburst-view');
+            const statsView = document.getElementById('stats-view');
+
+            basicView.classList.add('hidden');
+            sunburstView.classList.remove('active');
+            statsView.classList.remove('active');
 
             if (mode === 'basic') {
                 basicView.classList.remove('hidden');
-                sunburstView.classList.remove('active');
-            } else {
-                basicView.classList.add('hidden');
+            } else if (mode === 'sunburst') {
                 sunburstView.classList.add('active');
-                
-                setTimeout(() => {
-                    initSunburst();
-                }, 100);
+                setTimeout(() => initSunburst(), 100);
+            } else if (mode === 'stats') {
+                statsView.classList.add('active');
+                updateStats();
             }
         }
 
@@ -672,6 +932,40 @@
 
         function processEvent(data) {
             totalEvents++;
+
+            // Namespace stats
+            const namespace = data.namespace || 0;
+            namespaceCounts.set(namespace, (namespaceCounts.get(namespace) || 0) + 1);
+
+            // Edit type stats
+            if (data.new === true || data.new === 'true') {
+                editTypeCounts.new++;
+            } else if (data.type === 'move' || data.moved) {
+                editTypeCounts.move++;
+            } else if (data.type === 'delete' || data.deleted) {
+                editTypeCounts.delete++;
+            } else if (data.type === 'edit') {
+                editTypeCounts.edit++;
+            } else {
+                editTypeCounts.edit++;
+            }
+
+            // Minor vs Major stats
+            if (data.minor === true || data.minor === 'true') {
+                minorCounts.minor++;
+            } else {
+                minorCounts.major++;
+            }
+
+            // Bot vs Human stats
+            const isBot = data.bot === true || data.bot === 'true' || 
+                          data.user_is_bot === true || 
+                          (data.tags && data.tags.includes('bot'));
+            if (isBot) {
+                botCounts.bot++;
+            } else {
+                botCounts.human++;
+            }
 
             const serverName = data.server_name || data.meta?.domain || 'unknown';
             const projectType = getProjectType(serverName);
@@ -695,6 +989,10 @@
             
             if (currentMode === 'sunburst') {
                 updateSunburst();
+            }
+            
+            if (currentMode === 'stats') {
+                updateStats();
             }
         }
 
